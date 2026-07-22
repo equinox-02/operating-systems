@@ -1,2 +1,14 @@
 # operating-systems
 This repository contains a modular, web-based study suite designed for complete Operating Systems (OS) revision. Built with a dark, Linux terminal-inspired UI, each unit operates as an interactive, standalone single-file web app featuring dynamic boot-log animations, collapsible module cards, terminal prompt shortcuts, and custom color accents.
+
+📚 About the Sources & Curriculum Alignment
+This project brings together a comprehensive, verbatim collection of study materials covering the entire core Operating Systems curriculum. Every single slide, diagram, algorithm, and theoretical concept from university-grade presentations and textbook references—including Silberschatz, Galvin, and Tanenbaum—has been carefully preserved. No information is summarized, shortened, or omitted. By maintaining 100% text fidelity across all six units, this guide serves as an uncompromising primary source for exam preparation, ensuring you never miss a definition, formula, or system specification.
+
+⚙️ How the Modular Architecture Works
+Rather than forcing users to scroll through one massive, laggy single web page, the guide is split into six independent, lightweight HTML applications. Each file represents an entire chapter equipped with its own dedicated CSS theme pipeline, animated background boot log, and collapsible module hierarchy. Despite being individual files, they are interconnected by relative paths. Moving between chapters feels like using a single application, with the sidebar navigation hub automatically highlighting your current unit while keeping every other chapter accessible in a click.
+
+💻 The Signature Feature: Interactive Terminal Console
+At the bottom of every unit, you'll find a functional mock Linux terminal prompt—the crown jewel of this project's UI design. Designed to mimic a live terminal session (root@parul:~/OS_Guide$), this console lets you navigate the entire guide using real command-line syntax. You can type commands like next, prev, cd unit3, or goto 4 to instantly jump between chapters and modules. It also supports utility commands like help, ls, whoami, and clear, turning standard note-reading into an immersive, hands-on terminal experience.
+
+🎯 How This Guide Will Be Useful to You
+If you are preparing for mid-semester tests, end-semester exams, or technical interviews, this repository is built to save you time and keep you engaged. The distinct color themes for each chapter give you strong visual cues to organize concepts in your mind, while the expandable cards let you focus on one topic at a time without getting overwhelmed. Whether you prefer browsing via the file explorer sidebar, stepping through linearly with the module action buttons, or flexing your command-line muscle in the terminal prompt, this guide transforms heavy, dry lecture slides into an interactive learning environment.
