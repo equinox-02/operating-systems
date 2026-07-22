@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS_Guide :: ch2_process_mgmt.sh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#08080c;
+    --panel:#0d1117;
+    --panel-2:#101521;
+    --panel-3:#0a0e16;
+    --border:#1b2130;
+    --border-soft:#161b27;
+    --text:#d6dce6;
+    --text-dim:#7c8698;
+    --text-faint:#4a5261;
+    --mono:'JetBrains Mono', 'Consolas', monospace;
+    --sans:'Inter', -apple-system, sans-serif;
+
+    /* Chapter pipeline colors */
+    --ch1:#ff2b4d;   /* crimson red */
+    --ch2:#39ff88;   /* cyberpunk green */
+    --ch3:#2fb5ff;   /* neon blue */
+    --ch4:#ffc736;   /* radiant gold */
+    --ch5:#ff8a2b;   /* solar orange */
+    --ch6:#c9d3e0;   /* metallic silver */
+
+    --accent: var(--ch2);
+    --accent-rgb: 57,255,136;
+    --accent-glow: rgba(57,255,136,.35);
+    --accent-dim: rgba(57,255,136,.12);
+  }
+
+  *{box-sizing:border-box;}
+  ::selection{background:var(--accent);color:#0a0a0f;}
+
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    overflow-x:hidden;
+  }
+
+  /* ---------- background boot-log matrix ---------- */
+  #bootlog{
+    position:fixed;inset:0;z-index:0;
+    overflow:hidden;
+    opacity:.05;
+    pointer-events:none;
+    font-family:var(--mono);
+    font-size:12px;
+    line-height:1.5;
+    color:var(--accent);
+    mask-image:linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  }
+  #bootlog .col{
+    position:absolute;top:-50%;white-space:pre;
+    animation:scrollUp linear infinite;
+  }
+  @keyframes scrollUp{
+    from{transform:translateY(0);}
+    to{transform:translateY(50%);}
+  }
+
+  a{color:inherit;}
+
+  /* ---------- app shell ---------- */
+  #app{
+    position:relative;z-index:1;
+    display:grid;
+    grid-template-columns:280px 1fr;
+    min-height:100vh;
+  }
+
+  @media (max-width:920px){
+    #app{grid-template-columns:1fr;}
+    #sidebar{
+      position:fixed;left:0;top:0;bottom:0;width:280px;
+      transform:translateX(-100%);
+      transition:transform .3s ease;
+      z-index:50;
+    }
+    #sidebar.open{transform:translateX(0);}
+    #menuToggle{display:flex !important;}
+  }
+
+  /* ---------- sidebar ---------- */
+  #sidebar{
+    background:linear-gradient(180deg,#0a0d14,#08090e);
+    border-right:1px solid var(--border);
+    padding:20px 0 14px;
+    display:flex;flex-direction:column;
+    height:100vh;position:sticky;top:0;
+  }
+  .brand{
+    padding:0 18px 16px;
+    border-bottom:1px solid var(--border-soft);
+    margin-bottom:10px;
+  }
+  .brand .tag{
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    color:var(--text-faint);text-transform:uppercase;
+  }
+  .brand .title{
+    font-family:var(--mono);font-weight:700;font-size:15px;color:var(--text);
+    margin-top:4px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .brand .title .dotpulse{
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 8px var(--accent-glow);
+    animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .filetree{
+    font-family:var(--mono);font-size:12.5px;
+    padding:12px 10px;flex:1;overflow-y:auto;
+  }
+  .filetree .path-root{color:var(--text-faint);padding:0 8px 8px;font-size:11px;}
+
+  .chapter-item{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 10px;border-radius:6px;margin-bottom:3px;
+    cursor:pointer;color:var(--text-dim);
+    border:1px solid transparent;
+    transition:background .15s, border-color .15s, color .15s;
+    position:relative;
+    text-decoration:none;
+  }
+  .chapter-item .ico{width:14px;text-align:center;opacity:.8;}
+  .chapter-item .fname{flex:1;}
+  .chapter-item small{font-size:9.5px;color:var(--text-faint);}
+  .chapter-item:hover{background:var(--panel-2);color:var(--text);}
+  .chapter-item.active{
+    background:var(--accent-dim);
+    border-color:rgba(var(--accent-rgb),.4);
+    color:var(--text);
+  }
+  .chapter-item.active .ico{color:var(--accent);}
+  .chapter-item.active .fname{color:var(--accent);font-weight:600;}
+  .chapter-item.locked{opacity:.55;}
+  .chapter-item.locked .ico{color:var(--text-faint);}
+  .chapter-item.done{color:var(--text-dim);}
+  .chapter-item.done .ico{color:#39ff88;opacity:.8;}
+  .chapter-item.done small{color:#2b8558;}
+
+  .subnav{
+    margin:2px 0 10px 22px;
+    border-left:1px dashed var(--border);
+    padding-left:10px;
+    display:flex;flex-direction:column;gap:1px;
+  }
+  .subnav a{
+    display:block;font-size:11.3px;color:var(--text-faint);
+    padding:5px 6px;border-radius:4px;text-decoration:none;
+    line-height:1.35;
+    transition:background .15s,color .15s;
+  }
+  .subnav a:hover{background:var(--panel-2);color:var(--text);}
+  .subnav a.seen{color:var(--accent);}
+
+  .sidebar-foot{
+    padding:12px 18px 0;border-top:1px solid var(--border-soft);
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);
+    line-height:1.6;
+  }
+  .sidebar-foot .barwrap{
+    height:4px;background:var(--panel-2);border-radius:3px;overflow:hidden;margin-top:6px;
+  }
+  .sidebar-foot .bar{height:100%;background:var(--accent);width:0%;transition:width .3s ease;box-shadow:0 0 6px var(--accent-glow);}
+
+  /* ---------- main column ---------- */
+  #main{
+    padding:26px 30px 60px;
+    max-width:1180px;
+    width:100%;
+    margin:0 auto;
+  }
+
+  #menuToggle{
+    display:none;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);font-family:var(--mono);cursor:pointer;
+    margin-bottom:14px;
+  }
+
+  .console{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02) inset;
+  }
+  .console-bar{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 16px;
+    background:linear-gradient(180deg,#12161f,#0d1017);
+    border-bottom:1px solid var(--border);
+  }
+  .dots{display:flex;gap:7px;}
+  .dots span{width:11px;height:11px;border-radius:50%;display:block;}
+  .dots .r{background:#ff5f57;}
+  .dots .y{background:#febc2e;}
+  .dots .g{background:#28c840;}
+  .console-title{
+    font-family:var(--mono);font-size:12px;color:var(--text-dim);
+    margin-left:6px;
+  }
+  .console-title b{color:var(--text);}
+  .console-tabs{margin-left:auto;display:flex;gap:6px;}
+  .console-tabs span{
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);
+    padding:4px 10px;border-radius:5px;background:var(--panel-3);
+    border:1px solid var(--border-soft);
+  }
+
+  .console-body{padding:28px 30px 40px;}
+
+  /* hero */
+  .hero{
+    display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;justify-content:space-between;
+    padding-bottom:22px;margin-bottom:26px;border-bottom:1px solid var(--border-soft);
+  }
+  .hero .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--accent);
+    text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .hero .eyebrow::before{content:'●';font-size:8px;}
+  .hero h1{
+    font-family:var(--sans);font-weight:900;font-size:clamp(28px,4vw,44px);
+    margin:0 0 8px;line-height:1.05;letter-spacing:-.02em;
+  }
+  .hero h1 .glow{color:var(--accent);text-shadow:0 0 30px var(--accent-glow);}
+  .hero p.sub{
+    color:var(--text-dim);font-size:14.5px;max-width:560px;margin:0;line-height:1.6;
+  }
+  .prof-card{
+    font-family:var(--mono);font-size:11.5px;color:var(--text-dim);
+    border:1px solid var(--border);border-radius:8px;padding:12px 16px;
+    background:var(--panel-3);min-width:230px;
+  }
+  .prof-card .who{color:var(--text);font-weight:600;font-size:12.5px;margin-bottom:3px;}
+
+  /* group / accordion */
+  .group{
+    border:1px solid var(--border);
+    border-radius:10px;
+    margin-bottom:14px;
+    overflow:hidden;
+    background:var(--panel-3);
+    scroll-margin-top:20px;
+  }
+  .group-head{
+    display:flex;align-items:center;gap:12px;
+    padding:16px 18px;cursor:pointer;
+    user-select:none;
+    transition:background .15s;
+  }
+  .group-head:hover{background:var(--panel-2);}
+  .group-num{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    width:34px;height:34px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--accent-dim);border:1px solid rgba(var(--accent-rgb),.3);
+    flex-shrink:0;font-weight:700;
+  }
+  .group-title{flex:1;}
+  .group-title h2{
+    font-size:17px;margin:0;font-weight:800;letter-spacing:-.01em;
+  }
+  .group-title .cmd{
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:2px;
+  }
+  .chev{
+    font-family:var(--mono);color:var(--text-faint);transition:transform .25s;font-size:13px;
+  }
+  .group.open .chev{transform:rotate(90deg);color:var(--accent);}
+  .group-content{
+    max-height:0;overflow:hidden;
+    transition:max-height .35s ease;
+    border-top:1px solid transparent;
+  }
+  .group.open .group-content{border-top:1px solid var(--border-soft);}
+  .group-inner{padding:20px 22px 26px;display:flex;flex-direction:column;gap:20px;}
+
+  /* card = a single slide's content */
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border-soft);
+    border-radius:9px;
+    padding:18px 20px;
+    scroll-margin-top:20px;
+  }
+  .card h3{
+    margin:0 0 12px;font-size:14.5px;color:var(--text);
+    font-weight:700;
+    display:flex;align-items:center;gap:8px;
+  }
+  .card h3::before{
+    content:'$';color:var(--accent);font-family:var(--mono);font-weight:700;
+  }
+  .card h4{
+    font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--accent);margin:14px 0 6px;font-weight:700;
+  }
+  .card p{margin:0 0 10px;font-size:13.6px;line-height:1.7;color:var(--text-dim);}
+  .card p b, .card li b{color:var(--text);font-weight:600;}
+  .card ul, .card ol{margin:0 0 10px;padding-left:20px;}
+  .card li{font-size:13.6px;line-height:1.7;color:var(--text-dim);margin-bottom:4px;}
+  .card li::marker{color:var(--accent);}
+  .card em{color:var(--text);font-style:italic;}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:700px){.split{grid-template-columns:1fr;}}
+
+  .badge-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .badge{
+    font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;
+    background:var(--accent-dim);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3);
+  }
+
+  .adv-disadv{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;}
+  @media (max-width:700px){.adv-disadv{grid-template-columns:1fr;}}
+  .adv, .disadv{
+    border-radius:8px;padding:12px 14px;border:1px solid var(--border-soft);
+  }
+  .adv{background:rgba(57,255,136,.06);border-color:rgba(57,255,136,.25);}
+  .disadv{background:rgba(255,43,77,.06);border-color:rgba(255,43,77,.25);}
+  .adv h4{color:#39ff88;margin-top:0;}
+  .disadv h4{color:#ff6b6b;margin-top:0;}
+  .adv li::marker{color:#39ff88;}
+  .disadv li::marker{color:#ff6b6b;}
+
+  table.data{
+    width:100%;border-collapse:collapse;margin:10px 0 6px;
+    font-size:13px;
+  }
+  table.data th{
+    text-align:left;font-family:var(--mono);font-size:11px;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.04em;
+    border-bottom:1px solid var(--border);padding:8px 10px;
+  }
+  table.data td{
+    padding:8px 10px;border-bottom:1px solid var(--border-soft);color:var(--text-dim);
+  }
+  table.data code{
+    font-family:var(--mono);color:var(--text);background:var(--panel-3);
+    padding:2px 6px;border-radius:4px;font-size:12px;border:1px solid var(--border-soft);
+  }
+
+  .diagram-note{
+    font-family:var(--mono);font-size:11px;color:var(--text-faint);
+    text-align:center;margin-top:6px;
+  }
+
+  /* ---------- generic diagram box (process/thread/scheduling visuals) ---------- */
+  .diagram-box{
+    border:1px dashed var(--border);border-radius:8px;padding:20px;
+    background:var(--panel-3);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    margin:10px 0 14px;
+  }
+  .diagram-caption{
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-align:center;
+  }
+  .flow-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;}
+  .node{
+    font-family:var(--mono);font-size:12px;font-weight:700;
+    padding:10px 18px;border-radius:30px;
+    border:1.5px solid rgba(var(--accent-rgb),.4);color:var(--accent);
+    background:var(--accent-dim);white-space:nowrap;
+  }
+  .node.dim{border-color:var(--border);color:var(--text-dim);background:transparent;}
+  .arrow{color:var(--text-faint);font-size:13px;font-family:var(--mono);text-align:center;white-space:nowrap;}
+  .arrow small{display:block;font-size:9.5px;color:var(--text-faint);}
+
+  .pcb-stack{display:flex;flex-direction:column;width:230px;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin:0 auto;}
+  .pcb-stack div{padding:9px 12px;font-family:var(--mono);font-size:11.5px;text-align:center;border-bottom:1px solid var(--border-soft);background:var(--panel-3);color:var(--text-dim);}
+  .pcb-stack div:last-child{border-bottom:none;}
+  .pcb-stack div:nth-child(odd){background:var(--accent-dim);color:var(--text);}
+
+  .mem-stack{display:flex;flex-direction:column;width:180px;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-family:var(--mono);font-size:11.5px;margin:0 auto;}
+  .mem-stack div{padding:16px 10px;text-align:center;border-bottom:1px solid var(--border-soft);}
+  .mem-stack .stack-seg{background:var(--accent-dim);color:var(--accent);}
+  .mem-stack .heap-seg{background:rgba(var(--accent-rgb),.06);color:var(--text-dim);flex:1;}
+  .mem-stack .data-seg{background:var(--panel-3);color:var(--text-dim);}
+  .mem-stack .text-seg{background:var(--panel-3);color:var(--text-dim);border-bottom:none;}
+
+  /* ---------- table wrap (verbatim-source tables) ---------- */
+  .tbl-wrap{overflow-x:auto;margin:10px 0 6px;border:1px solid var(--border);border-radius:8px;}
+  .tbl-wrap table.data{margin:0;border:none;border-radius:0;}
+  .tbl-wrap table.data th, .tbl-wrap table.data td{padding:9px 14px;}
+
+  /* ---------- gantt chart ---------- */
+  .gantt{margin:14px 0 8px;}
+  .gantt-row{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .gantt-block{
+    font-family:var(--mono);font-size:12px;text-align:center;
+    padding:12px 4px;border-right:1px solid var(--bg);
+    color:#03150c;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+    min-width:34px;
+  }
+  .gantt-block:last-child{border-right:none;}
+  .gantt-block.idle{background:var(--panel-3);color:var(--text-faint);font-weight:400;}
+  .gantt-ticks{display:flex;font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:4px;}
+  .gantt-ticks span{flex-shrink:0;text-align:left;}
+
+  /* ---------- quantum / context-switch demo bars ---------- */
+  .quantum-demo{display:flex;flex-direction:column;gap:10px;width:100%;}
+  .qrow{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:11px;}
+  .qbar-track{flex:1;height:22px;background:var(--panel-3);border-radius:4px;overflow:hidden;display:flex;}
+  .qbar-track span{height:100%;border-right:1px solid var(--bg);}
+  .qmeta{width:170px;color:var(--text-faint);flex-shrink:0;}
+
+  .flowbox{
+    display:flex;flex-direction:column;align-items:center;gap:4px;margin:14px 0;
+  }
+  .flowbox .fnode{
+    font-family:var(--mono);font-size:12px;color:var(--text);
+    background:var(--panel-3);border:1px solid var(--border);
+    padding:8px 18px;border-radius:6px;text-align:center;min-width:200px;
+  }
+  .flowbox .fnode.hi{border-color:rgba(var(--accent-rgb),.5);color:var(--accent);}
+  .flowbox .farrow{color:var(--text-faint);font-family:var(--mono);}
+
+  .genline{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 4px;
+  }
+  @media (max-width:760px){.genline{grid-template-columns:1fr 1fr;}}
+  .genline .gbox{
+    border:1px solid var(--border);background:var(--panel-3);
+    border-radius:8px;padding:12px 12px;
+  }
+  .genline .gbox .yr{font-family:var(--mono);font-size:10.5px;color:var(--accent);}
+  .genline .gbox .lbl{font-size:12.6px;color:var(--text);margin-top:3px;font-weight:600;line-height:1.4;}
+
+  .refs{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;}
+  .refs li{
+    font-size:12.6px;color:var(--text-dim);padding:10px 12px;
+    background:var(--panel);border:1px solid var(--border-soft);border-radius:7px;
+    font-family:var(--mono);line-height:1.6;
+  }
+  .refs b{color:var(--accent);}
+
+  /* locked overlay */
+  .locked-view{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:80px 20px;gap:14px;
+  }
+  .locked-view .lock-ico{font-size:44px;filter:drop-shadow(0 0 20px var(--accent-glow));}
+  .locked-view h2{margin:0;font-size:22px;}
+  .locked-view p{color:var(--text-dim);max-width:420px;font-size:13.5px;line-height:1.6;}
+  .locked-view button{
+    margin-top:10px;font-family:var(--mono);font-size:12.5px;
+    background:var(--accent-dim);border:1px solid rgba(var(--accent-rgb),.4);
+    color:var(--accent);padding:10px 20px;border-radius:7px;cursor:pointer;
+  }
+  .locked-view button:hover{background:rgba(var(--accent-rgb),.22);}
+
+  /* nav buttons */
+  .stepper{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:8px;padding-top:20px;border-top:1px solid var(--border-soft);
+    gap:12px;flex-wrap:wrap;
+  }
+  .stepbtn{
+    font-family:var(--mono);font-size:12px;
+    background:var(--panel-3);border:1px solid var(--border);
+    color:var(--text-dim);padding:11px 16px;border-radius:8px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;transition:.15s;
+  }
+  .stepbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .stepbtn.primary{background:var(--accent-dim);color:var(--accent);border-color:rgba(var(--accent-rgb),.4);}
+  .stepper .midinfo{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+  /* end-of-chapter primary CTA */
+  .chapter-nav-row{
+    display:flex;gap:14px;flex-wrap:wrap;margin-top:20px;
+  }
+  .chapter-nav-row .prev-chapter-btn,
+  .chapter-nav-row .next-chapter-btn{
+    flex:1;min-width:220px;margin-top:0;
+  }
+  .prev-chapter-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    padding:18px 22px;
+    font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.03em;
+    text-decoration:none;text-align:center;
+    color:var(--text-dim);
+    background:var(--panel-3);
+    border:1px solid var(--border);
+    border-radius:10px;
+    transition:transform .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .prev-chapter-btn .bracket{opacity:.5;}
+  .prev-chapter-btn:hover{
+    color:var(--accent);border-color:rgba(var(--accent-rgb),.4);
+    transform:translateY(-2px);
+  }
+  .prev-chapter-btn:active{transform:translateY(0);}
+
+  .next-chapter-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    margin-top:20px;padding:18px 22px;
+    font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.03em;
+    text-decoration:none;text-align:center;
+    color:#0a0a0f;
+    background:linear-gradient(180deg, var(--accent), #0f9c4f);
+    border:1px solid rgba(var(--accent-rgb),.6);
+    border-radius:10px;
+    box-shadow:0 14px 30px -14px var(--accent-glow), 0 0 0 1px rgba(255,255,255,.04) inset;
+    transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .next-chapter-btn .bracket{opacity:.65;}
+  .next-chapter-btn .arrow{transition:transform .15s ease;}
+  .next-chapter-btn:hover{
+    filter:brightness(1.08);
+    transform:translateY(-2px);
+    box-shadow:0 18px 36px -14px var(--accent-glow), 0 0 0 1px rgba(255,255,255,.06) inset;
+  }
+  .next-chapter-btn:hover .arrow{transform:translateX(4px);}
+  .next-chapter-btn:active{transform:translateY(0);}
+
+  /* terminal prompt */
+  #termbar{
+    margin-top:22px;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:13px;
+    display:flex;align-items:center;gap:8px;
+  }
+  #termbar .prompt-user{color:var(--accent);}
+  #termbar .prompt-path{color:#2fb5ff;}
+  #termbar .prompt-sym{color:var(--text-faint);}
+  #termbar input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--text);
+    font-family:var(--mono);font-size:13px;
+  }
+  #termOutput{
+    margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--text-dim);
+    min-height:0;white-space:pre-wrap;line-height:1.6;
+  }
+  #termOutput:empty{display:none;}
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+
+  footer.pageend{
+    text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-faint);
+    margin-top:26px;
+  }
+</style>
+</head>
+<body data-chapter="2">
+
+<div id="bootlog"></div>
+
+<div id="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="tag">Parul University // CSE</div>
+      <div class="title"><span class="dotpulse"></span> OS_Guide.sh</div>
+    </div>
+
+    <nav class="filetree">
+      <div class="path-root">~/root/OS_Guide/</div>
+
+      <a class="chapter-item done" href="unit1.html" data-chapter="1">
+        <span class="ico">✔</span>
+        <span class="fname">unit1.html</span>
+        <small>done</small>
+      </a>
+
+      <a class="chapter-item active" href="unit2.html" data-chapter="2">
+        <span class="ico">📂</span>
+        <span class="fname">unit2.html</span>
+        <small>active</small>
+      </a>
+      <div class="subnav" id="subnav-2">
+        <a href="#g1" data-target="g1">01. Concepts &amp; Representation</a>
+        <a href="#g2" data-target="g2">02. Process States, Suspension &amp; PCB</a>
+        <a href="#g3" data-target="g3">03. Context Switching</a>
+        <a href="#g4" data-target="g4">04. Threads — Overview &amp; Advantages</a>
+        <a href="#g5" data-target="g5">05. Thread Types, Models &amp; Benefits</a>
+        <a href="#g6" data-target="g6">06. Process Scheduling — Concepts &amp; Criteria</a>
+        <a href="#g7" data-target="g7">07. First Come First Serve (FCFS)</a>
+        <a href="#g8" data-target="g8">08. Shortest Job First (SJF)</a>
+        <a href="#g9" data-target="g9">09. Priority &amp; Round Robin Scheduling</a>
+        <a href="#g10" data-target="g10">10. Multilevel Queue Scheduling &amp; References</a>
+      </div>
+
+      <a class="chapter-item" href="unit3.html" data-chapter="3">
+        <span class="ico">📄</span><span class="fname">unit3.html</span>
+      </a>
+      <a class="chapter-item" href="unit4.html" data-chapter="4">
+        <span class="ico">📄</span><span class="fname">unit4.html</span>
+      </a>
+      <a class="chapter-item" href="unit5.html" data-chapter="5">
+        <span class="ico">📄</span><span class="fname">unit5.html</span>
+      </a>
+      <a class="chapter-item" href="unit6.html" data-chapter="6">
+        <span class="ico">📄</span><span class="fname">unit6.html</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      module: <b style="color:var(--text)">Chapter 2 — Process Management</b><br>
+      read progress
+      <div class="barwrap"><div class="bar" id="progressBar"></div></div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main id="main">
+    <div id="menuToggle">☰</div>
+
+    <div class="console">
+      <div class="console-bar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="console-title">root@parul-university:~$ <b>cat ch2_process_mgmt.sh</b></div>
+        <div class="console-tabs"><span>ch2_process_mgmt.sh</span></div>
+      </div>
+
+      <div class="console-body" id="consoleBody">
+
+        <div class="hero">
+          <div>
+            <div class="eyebrow">Chapter&nbsp;2 · Process Management</div>
+            <h1>Processes, Thread &amp; Process <span class="glow">Scheduling</span></h1>
+            <p class="sub">A complete, verbatim interactive walkthrough of Unit 2 — process lifecycle, states, PCB, context switching, threads, multithreading models, and CPU scheduling algorithms — rendered as a Linux-flavoured terminal guide.</p>
+          </div>
+          <div class="prof-card">
+            <div class="who">Rimpa Kundu</div>
+            Department of CSE<br>
+            Parul University
+          </div>
+        </div>
+
+        <div class="group open" id="g1">
+          <div class="group-head" onclick="toggleGroup('g1')">
+            <div class="group-num">01</div>
+            <div class="group-title"><h2>Concepts &amp; Representation of a Process</h2><div class="cmd">./process_basics.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Process:</h3>
+
+  <p><strong>A process is a program in execution.</strong> Process is not as same as program code but a lot more than it.</p>
+  <p><strong>Process = Program + Runtime Activities.</strong></p>
+  <ul>
+    <li>An Instance of a program</li>
+    <li>Locus of Control</li>
+    <li>Unit of Execution</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Process Creation &amp; Termination:</h3>
+
+  <h4>When is a new process created</h4>
+  <ul>
+    <li>System initialization (Daemons)</li>
+    <li>Execution of a process creation system call by a running process</li>
+    <li>A user request to create a process</li>
+    <li>Initiation of a batch job</li>
+  </ul>
+  <h4>When does a process terminate</h4>
+  <ul>
+    <li>Normal exit (voluntary)</li>
+    <li>Error exit (voluntary)</li>
+    <li>Fatal error (involuntary)</li>
+    <li>Killed by another process (involuntary)</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Representation of Process:</h3>
+
+  <ul>
+    <li>Programs are executable(.exe) files generally stored in Secondary Memory.</li>
+    <li>In order to execute program, it must be loaded in main memory.</li>
+    <li>When a program is loaded into the memory and it becomes process.</li>
+    <li>Then process memory can be divided into four sections ─ stack, heap, text and data.</li>
+  </ul>
+  <div class="diagram-box">
+    <div class="mem-stack">
+      <div class="stack-seg">stack ↓</div>
+      <div class="heap-seg">↑ heap</div>
+      <div class="data-seg">data</div>
+      <div class="text-seg">text</div>
+    </div>
+    <div class="diagram-caption">Process memory layout — max (top) to 0 (bottom)</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Representation of Process (contd.):</h3>
+
+  <ul>
+    <li>The <strong>Text section</strong> is made-up of the compiled program code , read in from non-volatile storage when the program is launched.</li>
+    <li>The <strong>Data section</strong> is made up the global and static variables, allocated and initialized prior to executing the main.</li>
+    <li>The <strong>Heap Section</strong> is used for the dynamic memory allocation, and is managed via calls to new, delete, malloc, free, etc.</li>
+    <li>The <strong>Stack</strong> is used for local variables. Space on the stack is reserved for local variables when they are declared.</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Process VS Program:</h3>
+
+  <div class="tbl-wrap"><table class="data">
+    <tr><th>Process</th><th>Program</th></tr>
+    <tr><td>A process is program in execution.</td><td>A program is set of instructions.</td></tr>
+    <tr><td>A process is an active/ dynamic entity.</td><td>A program is a passive/ static entity.</td></tr>
+    <tr><td>A process has a limited life span. It is created when execution starts and terminated as execution is finished.</td><td>A program has a longer life span. It is stored on disk forever.</td></tr>
+    <tr><td>A process contains various resources like memory address, disk, printer etc... as per requirements.</td><td>A program is stored on disk in some file. It does not contain any other resource.</td></tr>
+    <tr><td>A process contains memory address which is called address space.</td><td>A program requires memory space on disk to store all instructions.</td></tr>
+  </table></div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g2">
+          <div class="group-head" onclick="toggleGroup('g2')">
+            <div class="group-num">02</div>
+            <div class="group-title"><h2>Process States, Suspension &amp; PCB</h2><div class="cmd">./process_states.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Different state of Process:</h3>
+
+  <p>Processes in the operating system can be in any of the following states:</p>
+  <ol>
+    <li><strong>NEW</strong>- The process is being created.</li>
+    <li><strong>READY</strong>- The process is waiting to be assigned to a processor.</li>
+    <li><strong>RUNNING</strong>- Instructions are being executed.</li>
+    <li><strong>WAITING</strong>- The process is waiting for some event to occur(such as an I/O completion or reception of a signal).</li>
+  </ol>
+
+              </div>
+
+              <div class="card">
+                <h3>Process State Transition:</h3>
+
+  <div class="diagram-box">
+    <div class="flow-row">
+      <div class="node dim">new</div>
+      <div class="arrow">admitted ▸</div>
+      <div class="node">ready</div>
+      <div class="arrow">scheduler dispatch ▸<br><small>◂ interrupt</small></div>
+      <div class="node">running</div>
+      <div class="arrow">exit ▸</div>
+      <div class="node dim">terminated</div>
+    </div>
+    <div class="flow-row" style="margin-top:6px;">
+      <div class="arrow">I/O or event wait ▾ / ▴ I/O or event completion</div>
+    </div>
+    <div class="flow-row"><div class="node">waiting</div></div>
+    <div class="diagram-caption">new → ready → running → terminated, with waiting as the I/O detour</div>
+  </div>
+  <h4>Process Transition:</h4>
+  <ul>
+    <li><strong>Ready --&gt; Running</strong><br>When it is time, the dispatcher selects a new process to run</li>
+    <li><strong>Running --&gt; Ready</strong><br>the running process has expired his time slot the running process gets interrupted because a higher priority process is in the ready state</li>
+    <li><strong>Running --&gt; Blocked</strong><br>When a process requests something for which it must wait a service that the OS is not ready to perform an access to a resource not yet available initiates I/O and must wait for the result waiting for a process to provide input (IPC).</li>
+    <li><strong>Blocked --&gt; Ready</strong><br>When the event for which it was waiting occurs</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Process Suspension:</h3>
+
+  <ul>
+    <li>Many OS are built around (Ready, Running, Blocked) states. But there is one more state that may aid in the operation of an OS - suspended state.</li>
+    <li>When none of the processes occupying the main memory is in a Ready state, OS swaps one of the blocked processes out onto to the Suspend queue.</li>
+    <li>When a Suspended process is ready to run it moves into "Ready, Suspend" queue. Thus, we have two more state: <strong>Blocked Suspend, Ready Suspend.</strong></li>
+    <li><strong>Blocked suspend</strong>: The process is in the secondary memory and awaiting an event.</li>
+    <li><strong>Ready suspend:</strong> The process is in the secondary memory but is available for execution as soon as it is loaded into the main memory.</li>
+    <li>Observe on what condition does a state transition take place? What are the possible state transitions?</li>
+  </ul>
+  <div class="diagram-box">
+    <div class="flow-row">
+      <div class="node dim">New process</div><div class="arrow">▸</div>
+      <div class="node">Ready</div><div class="arrow">dispatching ▸<br><small>◂ preemption</small></div>
+      <div class="node">Running</div><div class="arrow">completion ▸</div><div class="node dim">Terminated</div>
+    </div>
+    <div class="flow-row"><div class="arrow">swap out ▾ ▴ swap in</div></div>
+    <div class="flow-row"><div class="node dim">Ready Swapped</div><div class="arrow">resource granted / wait complete ▸</div><div class="node dim">Blocked Swapped</div></div>
+    <div class="flow-row"><div class="arrow">▴ swap out / swap in ▾</div></div>
+    <div class="flow-row"><div class="node">Blocked</div><div class="arrow">◂ resource or wait request</div></div>
+    <div class="diagram-caption">Suspend/swap extension of the basic process state diagram</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Process Control Block:</h3>
+
+  <ul>
+    <li>A Process Control Block is a data structure maintained by the Operating System for every process.</li>
+    <li>The PCB is identified by an integer process ID (PID).</li>
+    <li>A PCB keeps all the information needed to keep track of a process</li>
+  </ul>
+  <div class="diagram-box">
+    <div class="pcb-stack">
+      <div>Process ID</div><div>State</div><div>Pointer</div><div>Priority</div>
+      <div>Program counter</div><div>CPU registers</div><div>I/O information</div>
+      <div>Accounting information</div><div>etc....</div>
+    </div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Process State Attributes:</h3>
+
+  <ol>
+    <li><strong>Process State</strong> : The current state of the process i.e., whether it is ready, running, waiting, or whatever.</li>
+    <li><strong>Process privileges</strong> : This is required to allow/disallow access to system resources.</li>
+    <li><strong>Process ID</strong> : Unique identification for each of the process in the operating system.</li>
+    <li><strong>Pointer</strong> : A pointer to parent process.</li>
+    <li><strong>Program Counter</strong> : Program Counter is a pointer to the address of the next instruction to be executed for this process.</li>
+    <li><strong>CPU registers</strong> : Various CPU registers where process need to be stored for execution for running state.</li>
+    <li><strong>CPU Scheduling Information</strong> : Process priority and other scheduling information which is required to schedule the process.</li>
+    <li><strong>Memory management information</strong> :information of page table, memory limits, Segment table depending on memory used by the OS</li>
+    <li><strong>Accounting information</strong> :This includes the amount of CPU used for process execution, time limits, execution ID etc.</li>
+  </ol>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g3">
+          <div class="group-head" onclick="toggleGroup('g3')">
+            <div class="group-num">03</div>
+            <div class="group-title"><h2>Context Switching</h2><div class="cmd">./context_switch.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Context Switching:</h3>
+
+  <ul>
+    <li>Switching the CPU to another process requires saving the state of the old process and loading the saved state for the new process. This task is known as a Context Switch.</li>
+    <li>A context switch is a procedure that a computer's CPU(central processing unit) follows to <strong>change from one task (or process) to another</strong> while ensuring that the tasks do not conflict.</li>
+    <li>Effective context switching is critical if a computer is to provide user-friendly <strong>multitasking</strong></li>
+  </ul>
+  <div class="diagram-box">
+    <div class="diagram-caption">process P0 executing → interrupt/system call → save state into PCB₀ → reload state from PCB₁ → process P1 executing (idle time recorded on each side) → interrupt/system call → save state into PCB₁ → reload state from PCB₀ → back to P0</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Context Switching (contd.):</h3>
+
+  <p>A context switch is the mechanism to store and restore the state or context of a CPU in Process Control block so that a process execution can be resumed from the same point at a later time.</p>
+  <p>Using this technique, a context switcher enables multiple processes to share a single CPU. Context switching is an essential part of a multitasking operating system features. Context switch time is pure overhead, because the system does no useful work while switching.</p>
+  <p>Context Switching has become such a performance bottleneck that programmers are using new structures(threads) to avoid it whenever and wherever possible.</p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g4">
+          <div class="group-head" onclick="toggleGroup('g4')">
+            <div class="group-num">04</div>
+            <div class="group-title"><h2>Threads — Overview &amp; Advantages</h2><div class="cmd">./threads_intro.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Thread:</h3>
+
+  <ul>
+    <li>A thread is a single sequence stream within a process.</li>
+    <li>They are sometimes called lightweight processes.</li>
+    <li>In a process, threads allow multiple executions of streams.</li>
+    <li><strong>Thread</strong> is an execution unit which consists of its own program counter, a stack, and a set of registers.</li>
+    <li>As each thread has its own independent resource for process execution, multiple processes can be executed parallel by increasing number of threads.</li>
+    <li>Each thread belongs to exactly one process and <strong>no thread can exist outside a process.</strong></li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Advantages of Thread:</h3>
+
+  <div class="diagram-box">
+    <div class="flow-row" style="gap:26px;">
+      <div>
+        <div class="pcb-stack" style="width:150px;">
+          <div>code · data · files</div><div>register · stack</div>
+        </div>
+        <div class="diagram-caption">single-threaded process</div>
+      </div>
+      <div>
+        <div class="pcb-stack" style="width:230px;">
+          <div>code · data · files</div><div>reg · reg · reg</div><div>stack · stack · stack</div>
+        </div>
+        <div class="diagram-caption">multithreaded process</div>
+      </div>
+    </div>
+  </div>
+  <ul>
+    <li>Threads minimize the context switching time.</li>
+    <li>Use of threads provides concurrency within a process.</li>
+    <li>Efficient communication.</li>
+    <li>It is more economical to create and context switch threads.</li>
+    <li>Threads allow utilization of multiprocessor architectures to a greater scale and efficiency</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Process vs Thread &amp; Types of Thread:</h3>
+
+  <div class="tbl-wrap"><table class="data">
+    <tr><th>Process</th><th>Thread</th></tr>
+    <tr><td>Process is heavy weight or resource intensive.</td><td>Thread is light weight, taking lesser resources than a process.</td></tr>
+    <tr><td>Process switching needs interaction with operating system.</td><td>Thread switching does not need to interact with operating system.</td></tr>
+    <tr><td>In multiple processing environments, each process executes the same code but has its own memory and file resources.</td><td>All threads can share same set of open files, child processes.</td></tr>
+    <tr><td>If one process is blocked, then no other process can execute until the first process is unblocked.</td><td>While one thread is blocked and waiting, a second thread in the same task can run.</td></tr>
+    <tr><td>Multiple processes without using threads use more resources.</td><td>Multiple threaded processes use fewer resources.</td></tr>
+    <tr><td>In multiple processes each process operates independently of the others.</td><td>One thread can read, write or change another thread's data.</td></tr>
+  </table></div>
+  <h4>Types of Thread:</h4>
+  <p><strong>User Level Threads</strong> − User managed threads.</p>
+  <ul>
+    <li>In this case, the thread management kernel is not aware of the existence of threads.</li>
+    <li>The thread library contains code for creating and destroying the threads for passing message and data between threads, for scheduling thread execution and for saving and restoring thread contexts.</li>
+    <li>The application starts with a single thread.</li>
+  </ul>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g5">
+          <div class="group-head" onclick="toggleGroup('g5')">
+            <div class="group-num">05</div>
+            <div class="group-title"><h2>Thread Types, Models &amp; Benefits</h2><div class="cmd">./thread_models.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>User Level Threads — Adv./Disadv. &amp; Kernel Level Thread:</h3>
+
+  <h4>Advantages:</h4>
+  <ul>
+    <li>Thread switching does not require Kernel mode privileges. User level thread can run on any operating system.</li>
+    <li>Scheduling can be application specific in the user level thread. User level threads are fast to create and manage.</li>
+  </ul>
+  <h4>Disadvantages:</h4>
+  <ul><li>Multithreaded application cannot take advantage of multiprocessing</li></ul>
+  <h4>Kernel Level Thread:</h4>
+  <ul>
+    <li>In this case, thread management is done by the Kernel.</li>
+    <li>There is no thread management code in the application area.</li>
+    <li>Kernel threads are supported directly by the operating system.</li>
+    <li>The Kernel performs thread creation, scheduling and management in Kernel space.</li>
+  </ul>
+  <h4>Advantages:</h4>
+  <ul>
+    <li>Kernel can simultaneously schedule multiple threads from the same process on multiple processes.</li>
+    <li>If one thread in a process is blocked, the Kernel can schedule another thread of the same process.</li>
+  </ul>
+  <h4>Disadvantages:</h4>
+  <ul>
+    <li>Kernel threads are generally slower to create and manage than the user threads.</li>
+    <li>Transfer of control from one thread to another within the same process requires a mode switch to the Kernel.</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Multithreading:</h3>
+
+  <ul>
+    <li>Ability of operating system to execute multiple threads.</li>
+    <li>Some operating system provide a combined user level thread and Kernel level thread facility.</li>
+  </ul>
+  <h4>Multithreading Models:</h4>
+  <ol>
+    <li>Many to One Model</li>
+    <li>One to One Model</li>
+    <li>Many to Many Model</li>
+  </ol>
+  <h4>Many to Many Model:</h4>
+  <ul><li>In the many to one model, many user-level threads are all mapped onto a single kernel thread.</li>
+  <li>Thread management is handled by the thread library in user space, which is efficient in nature.</li></ul>
+  <h4>One to One Model:</h4>
+  <ul>
+    <li>The one-to-one model creates a separate kernel thread to handle each and every user thread.</li>
+    <li>Most implementations of this model place a limit on how many threads can be created.</li>
+    <li>Linux and Windows from 95 to XP implement the one-to-one model for threads One</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Benefits of Multithreading:</h3>
+
+  <ul>
+    <li>Responsiveness</li>
+    <li>Resource sharing, hence allowing better utilization of resources.</li>
+    <li>Economy: Creating and managing threads becomes easier.</li>
+    <li>Scalability: One thread runs on one CPU. In Multithreaded processes, threads can be distributed over a series of processors to scale.</li>
+    <li>Context Switching is smooth. Context switching refers to the procedure followed by CPU to change from one task to another.</li>
+  </ul>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g6">
+          <div class="group-head" onclick="toggleGroup('g6')">
+            <div class="group-num">06</div>
+            <div class="group-title"><h2>Process Scheduling — Concepts &amp; Criteria</h2><div class="cmd">./scheduling_basics.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Process Scheduling:</h3>
+
+  <p>The act of determining which process is in the ready state, and should be moved to the running state is known as <strong>Process Scheduling.</strong></p>
+  <h4>Why CPU Scheduling?</h4>
+  <p>The prime aim of the process scheduling system is:</p>
+  <ol>
+    <li>to keep the CPU busy all the time</li>
+    <li>to deliver minimum response time for all programs.</li>
+  </ol>
+  <h4>About Process Scheduling:</h4>
+  <ol>
+    <li>The scheduler must apply appropriate rules for swapping processes IN and OUT of CPU</li>
+    <li>Process scheduling is a process which allows one process to use the CPU while the execution of another process is on hold(in waiting state) due to unavailability of any resource like I/O etc., thereby making full use of CPU</li>
+    <li>The aim of CPU scheduling is to make the system <strong>efficient, fast and fair.</strong></li>
+  </ol>
+
+              </div>
+
+              <div class="card">
+                <h3>Types of Scheduling:</h3>
+
+  <p>Scheduling can be of two types:</p>
+  <ul>
+    <li><strong>Non-Pre-emptive Scheduling:</strong> When the currently executing process gives up the CPU voluntarily.</li>
+    <li><strong>Pre-emptive Scheduling:</strong> When the operating system decides to favor another process, pre-empting the currently executing process.</li>
+  </ul>
+  <h4>Scheduling Queue:</h4>
+  <ol>
+    <li>All processes, upon entering into the system, are stored in the <strong>Job Queue.</strong></li>
+    <li>Processes in the Ready state are placed in the <strong>Ready Queue</strong>.</li>
+    <li>Processes waiting for a device to become available are placed in <strong>Device Queues</strong>. There are unique device queues available for each I/O device.</li>
+    <li>A new process is initially put in the <strong>Ready queue</strong>. It waits in the ready queue until it is selected for execution(or dispatched).</li>
+  </ol>
+  <div class="diagram-box">
+    <div class="diagram-caption">ready queue → CPU → I/O request → I/O queue → I/O → back to ready queue<br>also: time slice expired → ready queue · fork a child → child executes → ready queue · wait for an interrupt → interrupt occurs → ready queue</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Events after CPU Assignment &amp; Types of Scheduler:</h3>
+
+  <p>Once the process is assigned to the CPU and is executing, one of the following several events can occur:</p>
+  <ol>
+    <li>The process could issue an I/O request, and then be placed in the I/O queue.</li>
+    <li>The process could create a new sub process and wait for its termination.</li>
+    <li>The process could be removed forcibly from the CPU, as a result of an interrupt, and be put back in the ready queue.</li>
+  </ol>
+  <p>In the first two cases, the process eventually switches from the waiting state to the ready state, and is then put back in the ready queue.</p>
+  <p>A process continues this cycle until it terminates, at which time it is removed from all queues and has its PCB and resources deallocated.</p>
+  <h4>Types of Scheduler:</h4>
+  <ul><li>Long Term Scheduler</li><li>Medium Term Scheduler</li><li>Short Term Scheduler</li></ul>
+  <h4>Long Term Scheduler:</h4>
+  <ul>
+    <li>Long term scheduler runs less frequently.</li>
+    <li>Long Term Schedulers decide which program must get into the job queue.</li>
+    <li>From the job queue, the Job Processor, selects processes and loads them into the memory for execution.</li>
+    <li>Primary aim of the Job Scheduler is to maintain a good degree of Multiprogramming</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Short Term &amp; Medium Term Scheduler:</h3>
+
+  <h4>Short Term Scheduler:</h4>
+  <ul>
+    <li>This is also known as CPU Scheduler and runs very frequently.</li>
+    <li>The primary aim of this scheduler is to enhance CPU performance and increase process execution rate.</li>
+  </ul>
+  <h4>Medium Term Scheduler:</h4>
+  <ul>
+    <li>During extra load, this scheduler picks out big processes from the ready queue for some time, to allow smaller processes to execute, thereby reducing the number of processes in the ready queue.</li>
+    <li>At some later time, the process can be reintroduced into memory and its execution can be continued where it left off. This scheme is called <strong>swapping</strong></li>
+  </ul>
+  <div class="diagram-box">
+    <div class="diagram-caption">swap in ← partially executed swapped-out processes → swap out<br>ready queue → CPU → end &nbsp;·&nbsp; CPU → I/O waiting queues → I/O → ready queue</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Scheduling Criteria &amp; CPU Scheduling:</h3>
+
+  <h4>1. CPU utilization:</h4>
+  <ul>
+    <li>To make out the best use of CPU and not to waste any CPU cycle, CPU would be working most of the time(Ideally 100% of the time).</li>
+    <li>Considering a real system, CPU usage should range from 40% (lightly loaded) 90%(heavily loaded.)</li>
+  </ul>
+  <h4>2. Throughput:</h4>
+  <ul>
+    <li>It is the total number of processes completed per unit time or rather say total amount of work done in a unit of time.</li>
+    <li>This may range from 10/second to 1/hour depending on the specific processes.</li>
+  </ul>
+  <h4>3. Turnaround time:</h4>
+  <p>It is the amount of time taken to execute a particular process, i.e. The interval from time of submission of the process to the time of completion of the process(Wall clock time).</p>
+  <h4>4. Waiting time:</h4>
+  <p>The sum of the periods spent waiting in the ready queue amount of time a process has</p>
+  <h4>CPU Scheduling:</h4>
+  <ul>
+    <li>CPU scheduling is a process which allows one process to use the CPU while the execution of another process is on hold(in waiting state) due to unavailability of any resource like I/O etc. thereby making full use of CPU.</li>
+    <li>The aim of CPU scheduling is to make the system efficient, fast and fair.</li>
+    <li>Whenever the CPU becomes idle, the operating system must select one of the processes in the ready queue to be executed.</li>
+    <li>The selection process is carried out by the short-term scheduler (or CPU scheduler). The scheduler selects from among the processes in memory that are ready to execute, and allocates the CPU to one of them.</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Preemptive vs Non-Preemptive &amp; Scheduling Algorithms:</h3>
+
+  <h4>1. Preemptive Scheduling:</h4>
+  <p>The CPU can take away the processor from a running process and give it to another process (usually one with higher priority or shorter burst time).</p>
+  <p><strong>Key Idea:</strong> Interrupt allowed — running process can be paused.</p>
+  <p>Examples of Preemptive Scheduling</p>
+  <ul><li>Round Robin (RR)</li><li>Preemptive SJF (Shortest Remaining Time First)</li><li>Preemptive Priority Scheduling</li><li>Multilevel Queue with preemption</li></ul>
+  <h4>2. Non-Preemptive Scheduling:</h4>
+  <p>Once a process starts running, the CPU cannot take it away until the process voluntarily releases it (completes or goes to waiting).</p>
+  <p><strong>Key Idea:</strong> Interrupt NOT allowed — running process continues till it finishes or waits.</p>
+  <p>Examples of Non-Preemptive Scheduling</p>
+  <ul><li>FCFS (First Come First Serve)</li><li>Non-preemptive SJF</li><li>Non-preemptive Priority Scheduling</li></ul>
+  <h4>Scheduling Algorithms:</h4>
+  <p>To decide which process to execute first and which process to execute last to achieve maximum CPU utilization, computer scientists have defined some algorithms, they are:</p>
+  <ul>
+    <li>First Come First Serve(FCFS) Scheduling</li>
+    <li>Shortest-Job-First(SJF) Scheduling</li>
+    <li>Priority Scheduling</li>
+    <li>Round Robin(RR) Scheduling</li>
+    <li>Multilevel Queue Scheduling</li>
+    <li>Multilevel Feedback Queue Scheduling</li>
+  </ul>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g7">
+          <div class="group-head" onclick="toggleGroup('g7')">
+            <div class="group-num">07</div>
+            <div class="group-title"><h2>First Come First Serve (FCFS)</h2><div class="cmd">./fcfs.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>First Come First Serve:</h3>
+
+  <ul>
+    <li>In the "First come first serve" scheduling algorithm, as the name suggests, the process which arrives first, gets executed first, or we can say that the process which requests the CPU first, gets the CPU allocated first.</li>
+    <li>First Come First Serve, is just like FIFO(First in First out) Queue data structure, where the data element which is added to the queue first, is the one who leaves the queue first.</li>
+    <li>This is used in Batch Systems.</li>
+    <li>It's easy to understand and implement programmatically, using a Queue data structure, where a new process enters through the tail of the queue, and the scheduler selects process from the head of the queue.</li>
+    <li>A perfect real-life example of FCFS scheduling is buying tickets at ticket counter.</li>
+  </ul>
+  <h4>Calculating Average Waiting Time:</h4>
+  <ul>
+    <li>For every scheduling algorithm, Average waiting time is a crucial parameter to judge its performance.</li>
+    <li>AWT or Average waiting time is the average of the waiting times of the processes in the queue, waiting for the scheduler to pick them for execution.</li>
+  </ul>
+  <p><em>Lower the Average Waiting Time, better the scheduling algorithm</em></p>
+
+              </div>
+
+              <div class="card">
+                <h3>FCFS — Worked Example &amp; Problems:</h3>
+
+  <p>Consider the processes P1, P2, P3, P4 given in the below table, arrives for execution in the same order, with Arrival Time 0, and given Burst Time.</p>
+  <div class="tbl-wrap"><table class="data"><tr><th>Process</th><th>Brust Time</th></tr>
+  <tr><td>P1</td><td>21</td></tr><tr><td>P2</td><td>3</td></tr><tr><td>P3</td><td>6</td></tr><tr><td>P4</td><td>2</td></tr></table></div>
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block" style="flex:21; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:6; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:2; background:#ff8c34;">P4</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:21;">0</span><span style="flex:3;">21</span><span style="flex:6;">24</span><span style="flex:2;">30</span><span>32</span></div>
+  </div>
+  <p>The average waiting time will be = (0+21+24+30)/4 = <strong>18.75 ms</strong></p>
+  <h4>Problems in FCFS:</h4>
+  <ul>
+    <li>It is Non-Pre-emptive algorithm, which means the process priority doesn't matter.</li>
+    <li>Not optimal Average Waiting Time.</li>
+    <li>Resources utilization in parallel is not possible, which leads to Convoy Effect, and hence poor resource(CPU, I/O etc) utilization.</li>
+  </ul>
+  <p><strong>Convoy Effect:</strong> Convoy Effect is a situation where many processes, who need to use a resource for short time are blocked by one process holding that resource for a long time. This essentially leads to poor utilization of resources and hence poor performance.</p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g8">
+          <div class="group-head" onclick="toggleGroup('g8')">
+            <div class="group-num">08</div>
+            <div class="group-title"><h2>Shortest Job First (SJF)</h2><div class="cmd">./sjf.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Shortest Job First:</h3>
+
+  <ul>
+    <li>Shortest Job First scheduling works on the process with the shortest burst time or duration first.</li>
+    <li>It is of two types: Non Pre-emptive · Pre-emptive</li>
+    <li>To successfully implement it, the burst time/duration time of the processes should be known to the processor in advance, which is practically not feasible all the time.</li>
+    <li>This scheduling algorithm is optimal if all the jobs/processes are available at the same time. (either Arrival time is 0 for all, or Arrival time is same for all)</li>
+  </ul>
+  <p>Consider the below processes available in the ready Queue for execution, with arrival time as 0 for all and given burst times. Based on FCFS what's Avg. waiting time = 18.75ms</p>
+  <div class="tbl-wrap"><table class="data"><tr><th>Process</th><th>Burst Time</th></tr>
+  <tr><td>P1</td><td>21</td></tr><tr><td>P2</td><td>3</td></tr><tr><td>P3</td><td>6</td></tr><tr><td>P4</td><td>2</td></tr></table></div>
+  <p>In Shortest Job First Scheduling, the shortest Process is executed first. Hence the GANTT chart will be following:</p>
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block" style="flex:2; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:6; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:21; background:var(--accent);">P1</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:2;">0</span><span style="flex:3;">2</span><span style="flex:6;">5</span><span style="flex:21;">11</span><span>32</span></div>
+  </div>
+  <p>Now, the average waiting time will be = ( 0 + 2 + 5 + 11)/4 = <strong>4.5 ms</strong></p>
+
+              </div>
+
+              <div class="card">
+                <h3>Problems with Non-preemptive SJF &amp; Preemptive SJF:</h3>
+
+  <ul>
+    <li>If the arrival time for processes are different, which means all the processes are not available in the ready queue at time 0, and some jobs arrive after some time, in such situation, sometimes process with short burst time have to wait for the current process's execution to finish, because in Non-Pre-emptive SJF, on arrival of a process with short duration, the existing job/process's execution is not halted/stopped to execute the short job first.</li>
+    <li>This leads to the problem of Starvation, where a shorter process has to wait for a long time until the current longer process gets executed.</li>
+  </ul>
+  <p>In Preemptive Shortest Job First Scheduling, jobs are put into ready queue as they arrive, but as a process with short burst time arrives, the existing process preempted or removed from execution, and the shorter job is executed first.</p>
+  <div class="tbl-wrap"><table class="data"><tr><th>Process</th><th>Burst Time</th><th>Arrival Time</th></tr>
+  <tr><td>P1</td><td>21</td><td>0</td></tr><tr><td>P2</td><td>3</td><td>1</td></tr><tr><td>P3</td><td>6</td><td>2</td></tr><tr><td>P4</td><td>2</td><td>3</td></tr></table></div>
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block" style="flex:1; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:2; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:6; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:20; background:var(--accent);">P1</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:1;">0</span><span style="flex:3;">1</span><span style="flex:2;">4</span><span style="flex:6;">6</span><span style="flex:20;">12</span><span>32</span></div>
+  </div>
+  <p>Avg. Waiting Time = [{(0-0)+(12-1)} + {(1-1)} + {(6-2)} + {(4-3)}]/4 = <strong>4 ms</strong></p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g9">
+          <div class="group-head" onclick="toggleGroup('g9')">
+            <div class="group-num">09</div>
+            <div class="group-title"><h2>Priority &amp; Round Robin Scheduling</h2><div class="cmd">./priority_rr.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Priority Scheduling:</h3>
+
+  <ul>
+    <li>Priority is assigned for each process.</li>
+    <li>Process with highest priority is executed first and so on.</li>
+    <li>Processes with same priority are executed in FCFS manner.</li>
+    <li>Priority can be decided based on memory requirements, time requirements or any other resource requirement.</li>
+    <li><strong>Pre-emptive:</strong> Preempt the CPU if the priority of newly arrived process is higher than the priority of the currently running process.</li>
+    <li><strong>No preemptive:</strong> It will simply put the new process at the head of the ready queue.</li>
+  </ul>
+  <div class="tbl-wrap"><table class="data"><tr><th>Process</th><th>Burst Time</th><th>Priority</th></tr>
+  <tr><td>P1</td><td>21</td><td>2</td></tr><tr><td>P2</td><td>3</td><td>1</td></tr><tr><td>P3</td><td>6</td><td>4</td></tr><tr><td>P4</td><td>2</td><td>3</td></tr></table></div>
+  <p>The GANTT chart for following processes based on Priority scheduling will be,</p>
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:21; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:2; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:6; background:#ffd23f;">P3</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:3;">0</span><span style="flex:21;">3</span><span style="flex:2;">24</span><span style="flex:6;">26</span><span>32</span></div>
+  </div>
+  <p>The average waiting time will be, ( 0 + 3 + 24 + 26 )/4 = <strong>13.25 ms</strong></p>
+
+              </div>
+
+              <div class="card">
+                <h3>Priority Scheduling — Problem &amp; Round Robin:</h3>
+
+  <h4>Problem:</h4>
+  <ul>
+    <li>Indefinite Blocking/Starvation In heavily loaded systems with High-priority processes some low priority processes are blocked because of high number of high priority processes, so low priority process will be waiting indefinitely.</li>
+  </ul>
+  <h4>Solution:</h4>
+  <ul><li>Aging Gradually increase the priority of processes that wait in the system for a long time.</li></ul>
+  <h4>Round Robin Scheduling Algorithm:</h4>
+  <ul>
+    <li>Each process gets a small unit of CPU time (time quantum q), usually 10-100 milliseconds. After this time has elapsed, the process is preempted and added to the end of the ready queue.</li>
+    <li>Context switching is used to save states of preempted processes.</li>
+    <li>If there are n processes in the ready queue and the time quantum is q, then each process gets 1/n of the CPU time in chunks of at most q time units at once. No process waits more than (n-1)q time units.</li>
+    <li>Timer interrupts every quantum to schedule next process</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Round Robin — Worked Example &amp; Performance:</h3>
+
+  <div class="tbl-wrap"><table class="data"><tr><th>Process</th><th>Burst Time</th></tr>
+  <tr><td>P1</td><td>21</td></tr><tr><td>P2</td><td>3</td></tr><tr><td>P3</td><td>6</td></tr><tr><td>P4</td><td>2</td></tr></table></div>
+  <p>The GANTT chart for round robin scheduling will be,</p>
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block" style="flex:5; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:5; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:2; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:5; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:1; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:5; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:5; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:1; background:var(--accent);">P1</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:5;">0</span><span style="flex:3;">5</span><span style="flex:5;">8</span><span style="flex:2;">13</span><span style="flex:5;">15</span><span style="flex:1;">20</span><span style="flex:5;">21</span><span style="flex:5;">26</span><span style="flex:1;">31</span><span>32</span></div>
+  </div>
+  <p>The average waiting time will be, <strong>11 ms.</strong></p>
+  <h4>Performance</h4>
+  <ul>
+    <li>q large ⇒ FIFO</li>
+    <li>q small ⇒ q must be large with respect to context switch, otherwise overhead is too high</li>
+    <li>q should be large compared to context switch time</li>
+    <li>q usually 10ms to 100ms, context switch &lt; 10 μsec</li>
+  </ul>
+  <div class="diagram-box">
+    <div class="quantum-demo">
+      <div class="qrow"><div class="qmeta">process time = 10, quantum = 12</div><div class="qbar-track"><span style="width:100%; background:var(--accent);"></span></div><div class="qmeta" style="width:110px;">0 context switches</div></div>
+      <div class="qrow"><div class="qmeta">quantum = 6</div><div class="qbar-track"><span style="width:60%; background:#39c3ff;"></span><span style="width:40%; background:#2b8cad;"></span></div><div class="qmeta" style="width:110px;">1 context switch</div></div>
+      <div class="qrow"><div class="qmeta">quantum = 1</div><div class="qbar-track">
+        <span style="width:10%; background:#ffd23f;"></span><span style="width:10%; background:#e0b52f;"></span><span style="width:10%; background:#ffd23f;"></span><span style="width:10%; background:#e0b52f;"></span><span style="width:10%; background:#ffd23f;"></span><span style="width:10%; background:#e0b52f;"></span><span style="width:10%; background:#ffd23f;"></span><span style="width:10%; background:#e0b52f;"></span><span style="width:10%; background:#ffd23f;"></span><span style="width:10%; background:#e0b52f;"></span>
+      </div><div class="qmeta" style="width:110px;">9 context switches</div></div>
+    </div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>Definitions &amp; Practice Problem:</h3>
+
+  <div class="tbl-wrap"><table class="data">
+    <tr><td><strong>Arrival Time:</strong></td><td>Time at which the process arrives in the ready queue.</td></tr>
+    <tr><td><strong>Completion Time:</strong></td><td>Time at which process completes its execution.</td></tr>
+    <tr><td><strong>Burst Time:</strong></td><td>Time required by a process for CPU execution.</td></tr>
+    <tr><td><strong>Turn Around Time:</strong></td><td>Time Difference between completion time and arrival time.<br>Turn Around Time = Completion Time - Arrival Time</td></tr>
+    <tr><td><strong>Waiting Time(W.T):</strong></td><td>Time Difference between turn around time and burst time.<br>Waiting Time = Turn Around Time - Burst Time</td></tr>
+  </table></div>
+  <p>Response Time = Start Time of Process – Arrival Time</p>
+  <p>Consider the following processes with arrival time and burst time. Calculate average turnaround time, average waiting time and average response time using round robin with time quantum 3?</p>
+  <div class="tbl-wrap"><table class="data"><tr><th>Process id</th><th>Arrival time</th><th>Burst time</th></tr>
+  <tr><td>P1</td><td>5</td><td>5</td></tr>
+  <tr><td>P2</td><td>4</td><td>6</td></tr>
+  <tr><td>P3</td><td>3</td><td>7</td></tr>
+  <tr><td>P4</td><td>1</td><td>9</td></tr>
+  <tr><td>P5</td><td>2</td><td>2</td></tr>
+  <tr><td>P6</td><td>6</td><td>3</td></tr>
+  </table></div>
+
+              </div>
+
+              <div class="card">
+                <h3>Round Robin (q=3) — Solved:</h3>
+
+  <div class="gantt">
+    <div class="gantt-row">
+      <div class="gantt-block idle" style="flex:1;">IDLE</div>
+      <div class="gantt-block" style="flex:3; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:2; background:#c7d0da;">P5</div>
+      <div class="gantt-block" style="flex:3; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:3; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:3; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:3; background:#ff3b4e;">P6</div>
+      <div class="gantt-block" style="flex:3; background:#ffd23f;">P3</div>
+      <div class="gantt-block" style="flex:3; background:#39c3ff;">P2</div>
+      <div class="gantt-block" style="flex:3; background:#ff8c34;">P4</div>
+      <div class="gantt-block" style="flex:2; background:var(--accent);">P1</div>
+      <div class="gantt-block" style="flex:1; background:#ffd23f;">P3</div>
+    </div>
+    <div class="gantt-ticks"><span style="flex:1;">0</span><span style="flex:3;">1</span><span style="flex:2;">4</span><span style="flex:3;">6</span><span style="flex:3;">9</span><span style="flex:3;">12</span><span style="flex:3;">15</span><span style="flex:3;">18</span><span style="flex:3;">21</span><span style="flex:3;">24</span><span style="flex:3;">27</span><span style="flex:2;">30</span><span style="flex:1;">32</span><span>33</span></div>
+  </div>
+  <div class="tbl-wrap"><table class="data">
+    <tr><th>Process id</th><th>Arrival time</th><th>Burst time</th><th>Completion time</th><th>Turnaround time</th><th>Waiting time</th><th>Response time</th></tr>
+    <tr><td>P1</td><td>5</td><td>5</td><td>32</td><td>27</td><td>22</td><td>10</td></tr>
+    <tr><td>P2</td><td>4</td><td>6</td><td>27</td><td>23</td><td>17</td><td>5</td></tr>
+    <tr><td>P3</td><td>3</td><td>7</td><td>33</td><td>30</td><td>23</td><td>3</td></tr>
+    <tr><td>P4</td><td>1</td><td>9</td><td>30</td><td>29</td><td>20</td><td>0</td></tr>
+    <tr><td>P5</td><td>2</td><td>2</td><td>6</td><td>4</td><td>2</td><td>2</td></tr>
+    <tr><td>P6</td><td>6</td><td>3</td><td>21</td><td>15</td><td>12</td><td>12</td></tr>
+  </table></div>
+  <p>Average turnaround time=(27+23+30+29+4+15)6=<strong>21.33</strong></p>
+  <p>Average waiting time=(22+17+23+20+2+12)6=<strong>16</strong></p>
+  <p>Average response time=(10+5+3+0+2+12)6=<strong>5.33</strong></p>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP BREAK ================= -->
+
+        <div class="group" id="g10">
+          <div class="group-head" onclick="toggleGroup('g10')">
+            <div class="group-num">10</div>
+            <div class="group-title"><h2>Multilevel Queue Scheduling &amp; References</h2><div class="cmd">./mlq_references.sh</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>Multi-level Queue Scheduling Algorithm:</h3>
+
+  <p>A multi-level queue scheduling algorithm partitions the ready queue into several separate queues.</p>
+  <ul>
+    <li>foreground (interactive)</li>
+    <li>background (batch)</li>
+    <li>The processes are permanently assigned to one queue, generally based on some property of the process, such as memory size, process priority, or process type.</li>
+    <li>Each queue has its own scheduling algorithm.</li>
+    <li>foreground – RR</li>
+    <li>background – FCFS</li>
+    <li>In addition, there must be scheduling among the queues, which is commonly implemented a fixed-priority pre-emptive scheduling.</li>
+    <li>Each queue has absolute priority over lower-priority queues. No process in the batch queue, for example, could run unless the queues for system processes, interactive processes, and interactive editing processes were all empty.</li>
+    <li>If an interactive editing process entered the ready queue while a batch process was running, the batch process will be pre-empted.</li>
+  </ul>
+
+              </div>
+
+              <div class="card">
+                <h3>Multilevel Feedback Queue Scheduling (MLFQ):</h3>
+
+  <ul>
+    <li>This Scheduling is like Multilevel Queue(MLQ) Scheduling but in this process can move between the queues. Multilevel Feedback Queue Scheduling (MLFQ) keep analyzing the behavior (time of execution) of processes and according to which it changes its priority.</li>
+  </ul>
+  <h4>Multilevel-feedback-queue scheduler defined by the following parameters:</h4>
+  <ul>
+    <li>number of queues</li>
+    <li>scheduling algorithms for each queue</li>
+    <li>method used to determine when to upgrade a process</li>
+    <li>method used to determine when to demote a process</li>
+    <li>method used to determine which queue a process will enter when that process needs service</li>
+  </ul>
+  <h4>Three queues:</h4>
+  <ul>
+    <li>Q0 – RR with time quantum 8 milliseconds</li>
+    <li>Q1 – RR time quantum 16 milliseconds</li>
+    <li>Q2 – FCFS</li>
+  </ul>
+  <h4>Scheduling</h4>
+  <ul>
+    <li>A new job enters queue Q0 which is served FCFS</li>
+    <li>When it gains CPU, job receives 8 milliseconds</li>
+    <li>If it does not finish in 8 milliseconds, job is moved to queue Q1</li>
+    <li>At Q1 job is again served FCFS and receives 16 additional milliseconds</li>
+    <li>If it still does not complete, it is preempted and moved to queue Q2</li>
+  </ul>
+  <div class="diagram-box">
+    <div class="diagram-caption">Q0 (quantum = 8) → Q1 (quantum = 16) → Q2 (FCFS), each queue exits directly on completion</div>
+  </div>
+
+              </div>
+
+              <div class="card">
+                <h3>References:</h3>
+
+  <ul>
+    <li>1. Silberschatz, A., Galvin, P. B., &amp; Gagne, G. (2005). Operating system concepts. Hoboken, NJ: J. Wiley &amp; Sons.</li>
+    <li>2. Stallings, W. (2018). Operating systems: Internals and design principles. Prentice-Hall</li>
+    <li>3. Tanenbaum, A. (2014). Modern operating systems. Harlow: Pearson.</li>
+    <li>4. Nutt, G. J. (2004). Operating systems: A modern perspective. Boston: Pearson/ Addison Wesley.</li>
+    <li>5. Bower T. Operating System Structure. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/struct.html</li>
+    <li>6. Bower T. Basic Operating System Concepts. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/OSrole.html</li>
+    <li>7. Operating System Generations. Tutorials point. https://www.tutorialspoint.com/operating-system-generations</li>
+  </ul>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stepper">
+          <button class="stepbtn" onclick="prevModule()">← Previous Section</button>
+          <div class="midinfo" id="stepInfo">module 1 / 10</div>
+          <button class="stepbtn" onclick="nextModule()">Next Section →</button>
+        </div>
+
+        <div class="chapter-nav-row">
+          <a class="prev-chapter-btn" href="unit1.html">
+            <span class="bracket">[</span> ← PREVIOUS MODULE: unit1.html <span class="bracket">]</span>
+          </a>
+          <a id="nextModuleBtn" class="next-chapter-btn" href="unit3.html">
+            <span class="bracket">[</span> EXECUTE NEXT MODULE: unit3.html <span class="arrow">→</span> <span class="bracket">]</span>
+          </a>
+        </div>
+
+        <!-- terminal prompt -->
+        <div id="termbar">
+          <span class="prompt-user">root@parul</span><span class="prompt-sym">:</span><span class="prompt-path">~/OS_Guide</span><span class="prompt-sym">$</span>
+          <input id="termInput" type="text" placeholder="type 'help' and press enter…" autocomplete="off">
+        </div>
+        <div id="termOutput"></div>
+
+        <footer class="pageend">— end of ch2_process_mgmt.sh · Parul University · www.paruluniversity.ac.in —</footer>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  /* ---------------- boot log background ---------------- */
+  (function(){
+    const lines = [
+      "[    0.000000] Linux version 6.2.0-generic (gcc 12.2.0)",
+      "[    0.004112] Command line: BOOT_IMAGE=/vmlinuz root=UUID=os-unit2",
+      "[    0.012893] ACPI: Core revision 20221020",
+      "[    0.021044] Kernel scheduler: CFS enabled",
+      "[    0.033201] process: fork() syscall registered",
+      "[    0.041552] sched: creating new task_struct for pid=1042",
+      "[    0.052110] mem: allocating stack segment 8KB",
+      "[    0.061982] mem: allocating heap segment 32KB",
+      "[    0.073341] pcb: initializing process control block",
+      "[    0.082019] pcb: state=NEW -> READY",
+      "[    0.093552] dispatcher: context switch pid 1042 -> 1043",
+      "[    0.101233] thread: spawning lightweight thread tid=7",
+      "[    0.112904] thread: user-space thread library loaded",
+      "[    0.120441] sched: quantum expired, preempting pid 1043",
+      "[    0.133221] sched: algorithm=ROUND_ROBIN quantum=4ms",
+      "[    0.142098] io: process pid 1044 waiting on device queue",
+      "[    0.151774] sched: FCFS queue depth=6",
+      "[    0.160982] cpu0: utilization 74.2%",
+      "[    0.171556] sched: SJF burst-time estimate updated",
+      "[    0.182310] pcb: saving registers eax ebx ecx edx",
+      "[    0.191822] sched: priority aging applied to pid 1039",
+      "[    0.202117] mem: swap-out ready_suspend pid 1031",
+      "[    0.213340] kernel: multilevel feedback queue Q0->Q1",
+      "[    0.221109] sched: dispatch latency 0.02ms",
+      "[    0.233982] thread: kernel-level thread created",
+      "[    0.242871] cpu0: idle loop entered",
+      "[    0.251190] sched: convoy effect detected, monitoring",
+      "[    0.263410] process: pid 1045 terminated normally",
+      "[    0.271229] pcb: deallocating resources for pid 1045",
+      "[    0.281098] sched: turnaround time computed = 27ms",
+    ];
+    const container = document.getElementById('bootlog');
+    for(let c=0;c<3;c++){
+      const col = document.createElement('div');
+      col.className='col';
+      col.style.left = (c*34)+'%';
+      col.style.animationDuration = (28 + c*9)+'s';
+      let txt='';
+      for(let i=0;i<3;i++){ txt += lines.join('\n')+'\n\n'; }
+      col.textContent = txt;
+      container.appendChild(col);
+    }
+  })();
+
+  /* ---------------- accordion ---------------- */
+  function toggleGroup(id){
+    const g = document.getElementById(id);
+    if(!g) return;
+    const content = g.querySelector('.group-content');
+    if(g.classList.contains('open')){
+      g.classList.remove('open');
+      content.style.maxHeight = null;
+    } else {
+      g.classList.add('open');
+      content.style.maxHeight = content.scrollHeight + 'px';
+    }
+  }
+  // expose globally since re-render replaces DOM
+  window.toggleGroup = toggleGroup;
+
+  function openAllForMeasure(){
+    document.querySelectorAll('.group.open .group-content').forEach(c=>{
+      c.style.maxHeight = c.scrollHeight + 'px';
+    });
+  }
+  window.addEventListener('load', openAllForMeasure);
+  window.addEventListener('resize', openAllForMeasure);
+
+  /* subnav jump + open target group */
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('.subnav a');
+    if(!a) return;
+    e.preventDefault();
+    const id = a.getAttribute('data-target');
+    const g = document.getElementById(id);
+    if(g && !g.classList.contains('open')) toggleGroup(id);
+    setTimeout(()=>{ g && g.scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
+    document.querySelectorAll('.subnav a').forEach(x=>x.classList.remove('seen'));
+    a.classList.add('seen');
+    if(window.innerWidth <= 920) document.getElementById('sidebar').classList.remove('open');
+  });
+
+  /* ---------------- module stepper ---------------- */
+  const groupIds = ['g1','g2','g3','g4','g5','g6','g7','g8','g9','g10'];
+  let currentModule = 0;
+
+  function goToModule(idx){
+    if(idx < 0) idx = 0;
+    if(idx > groupIds.length-1) idx = groupIds.length-1;
+    currentModule = idx;
+    const id = groupIds[idx];
+    const g = document.getElementById(id);
+    if(g && !g.classList.contains('open')) toggleGroup(id);
+    g && g.scrollIntoView({behavior:'smooth', block:'start'});
+    const info = document.getElementById('stepInfo');
+    if(info) info.textContent = `module ${idx+1} / ${groupIds.length}`;
+    updateProgress();
+  }
+  function nextModule(){ goToModule(currentModule+1); }
+  function prevModule(){ goToModule(currentModule-1); }
+  window.nextModule = nextModule;
+  window.prevModule = prevModule;
+
+  function updateProgress(){
+    const bar = document.getElementById('progressBar');
+    if(bar) bar.style.width = Math.round(((currentModule+1)/groupIds.length)*100)+'%';
+  }
+  updateProgress();
+
+  /* ---------------- terminal prompt ---------------- */
+  function bindTerminal(){
+    const input = document.getElementById('termInput');
+    const output = document.getElementById('termOutput');
+    if(!input) return;
+    input.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter') return;
+      const cmd = input.value.trim();
+      input.value = '';
+      if(cmd === '') return;
+      const lower = cmd.toLowerCase();
+      let resp = '';
+
+      // ---- cross-file navigation aliases ----
+      const unitMatch = lower.match(/^(?:cd\s+unit|goto\s+)(\d)$/) || lower.match(/^cd unit(\d)\.html$/);
+      if(lower === 'next' || lower === 'cd unit3'){
+        resp = 'jumping to unit3.html…';
+        output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+        setTimeout(()=>{ window.location.href = 'unit3.html'; }, 250);
+        return;
+      } else if(lower === 'prev' || lower === 'cd unit1'){
+        resp = 'jumping to unit1.html…';
+        output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+        setTimeout(()=>{ window.location.href = 'unit1.html'; }, 250);
+        return;
+      } else if(unitMatch){
+        const n = parseInt(unitMatch[1],10);
+        if(n>=1 && n<=6){
+          resp = `jumping to unit${n}.html…`;
+          output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+          setTimeout(()=>{ window.location.href = `unit${n}.html`; }, 250);
+          return;
+        }
+      }
+
+      if(lower === 'help'){
+        resp = "available commands:\n  help          show this message\n  clear         clear terminal output\n  ls            list unit files\n  whoami        display current user\n  progress      show reading progress\n  section <n>   jump to section n (1-10) within this page\n  next          go to unit3.html\n  prev          go to unit1.html\n  cd unit<n>    go to unit<n>.html (1-6)\n  goto <n>      go to unit<n>.html (1-6)";
+      } else if(lower === 'clear'){
+        output.textContent = '';
+        return;
+      } else if(lower === 'ls'){
+        resp = "unit1.html(done)  unit2.html(active)  unit3.html  unit4.html  unit5.html  unit6.html";
+      } else if(lower === 'whoami'){
+        resp = "cse_student @ parul-institute-of-technology";
+      } else if(lower === 'progress'){
+        resp = `module ${currentModule+1} of ${groupIds.length} viewed`;
+      } else if(lower.startsWith('section')){
+        const n = parseInt(lower.split(' ')[1],10);
+        if(!isNaN(n) && n>=1 && n<=groupIds.length){
+          goToModule(n-1);
+          resp = `jumping to section ${n}…`;
+        } else {
+          resp = `usage: section <1-${groupIds.length}>`;
+        }
+      } else {
+        resp = `bash: ${cmd}: command not found. type 'help' for options.`;
+      }
+      output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+    });
+  }
+  bindTerminal();
+
+  /* ---------------- mobile menu ---------------- */
+  const menuToggle = document.getElementById('menuToggle');
+  if(menuToggle){
+    menuToggle.addEventListener('click', ()=>{
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  }
+</script>
+</body>
+</html>

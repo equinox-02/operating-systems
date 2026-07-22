@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS_Guide :: ch1_intro.sh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#08080c;
+    --panel:#0d1117;
+    --panel-2:#101521;
+    --panel-3:#0a0e16;
+    --border:#1b2130;
+    --border-soft:#161b27;
+    --text:#d6dce6;
+    --text-dim:#7c8698;
+    --text-faint:#4a5261;
+    --mono:'JetBrains Mono', 'Consolas', monospace;
+    --sans:'Inter', -apple-system, sans-serif;
+
+    /* Chapter pipeline colors */
+    --ch1:#ff2b4d;   /* crimson red */
+    --ch2:#39ff88;   /* cyberpunk green */
+    --ch3:#2fb5ff;   /* neon blue */
+    --ch4:#ffc736;   /* radiant gold */
+    --ch5:#ff8a2b;   /* solar orange */
+    --ch6:#c9d3e0;   /* metallic silver */
+
+    --accent: var(--ch1);
+    --accent-rgb: 255,43,77;
+    --accent-glow: rgba(255,43,77,.35);
+    --accent-dim: rgba(255,43,77,.12);
+  }
+
+  *{box-sizing:border-box;}
+  ::selection{background:var(--accent);color:#0a0a0f;}
+
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    overflow-x:hidden;
+  }
+
+  /* ---------- background boot-log matrix ---------- */
+  #bootlog{
+    position:fixed;inset:0;z-index:0;
+    overflow:hidden;
+    opacity:.05;
+    pointer-events:none;
+    font-family:var(--mono);
+    font-size:12px;
+    line-height:1.5;
+    color:var(--accent);
+    mask-image:linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  }
+  #bootlog .col{
+    position:absolute;top:-50%;white-space:pre;
+    animation:scrollUp linear infinite;
+  }
+  @keyframes scrollUp{
+    from{transform:translateY(0);}
+    to{transform:translateY(50%);}
+  }
+
+  a{color:inherit;}
+
+  /* ---------- app shell ---------- */
+  #app{
+    position:relative;z-index:1;
+    display:grid;
+    grid-template-columns:280px 1fr;
+    min-height:100vh;
+  }
+
+  @media (max-width:920px){
+    #app{grid-template-columns:1fr;}
+    #sidebar{
+      position:fixed;left:0;top:0;bottom:0;width:280px;
+      transform:translateX(-100%);
+      transition:transform .3s ease;
+      z-index:50;
+    }
+    #sidebar.open{transform:translateX(0);}
+    #menuToggle{display:flex !important;}
+  }
+
+  /* ---------- sidebar ---------- */
+  #sidebar{
+    background:linear-gradient(180deg,#0a0d14,#08090e);
+    border-right:1px solid var(--border);
+    padding:20px 0 14px;
+    display:flex;flex-direction:column;
+    height:100vh;position:sticky;top:0;
+  }
+  .brand{
+    padding:0 18px 16px;
+    border-bottom:1px solid var(--border-soft);
+    margin-bottom:10px;
+  }
+  .brand .tag{
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    color:var(--text-faint);text-transform:uppercase;
+  }
+  .brand .title{
+    font-family:var(--mono);font-weight:700;font-size:15px;color:var(--text);
+    margin-top:4px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .brand .title .dotpulse{
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 8px var(--accent-glow);
+    animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .filetree{
+    font-family:var(--mono);font-size:12.5px;
+    padding:12px 10px;flex:1;overflow-y:auto;
+  }
+  .filetree .path-root{color:var(--text-faint);padding:0 8px 8px;font-size:11px;}
+
+  .chapter-item{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 10px;border-radius:6px;margin-bottom:3px;
+    cursor:pointer;color:var(--text-dim);
+    border:1px solid transparent;
+    transition:background .15s, border-color .15s, color .15s;
+    position:relative;
+    text-decoration:none;
+  }
+  .chapter-item .ico{width:14px;text-align:center;opacity:.8;}
+  .chapter-item .fname{flex:1;}
+  .chapter-item small{font-size:9.5px;color:var(--text-faint);}
+  .chapter-item:hover{background:var(--panel-2);color:var(--text);}
+  .chapter-item.active{
+    background:var(--accent-dim);
+    border-color:rgba(var(--accent-rgb),.4);
+    color:var(--text);
+  }
+  .chapter-item.active .ico{color:var(--accent);}
+  .chapter-item.active .fname{color:var(--accent);font-weight:600;}
+  .chapter-item.locked{opacity:.55;}
+  .chapter-item.locked .ico{color:var(--text-faint);}
+
+  .subnav{
+    margin:2px 0 10px 22px;
+    border-left:1px dashed var(--border);
+    padding-left:10px;
+    display:flex;flex-direction:column;gap:1px;
+  }
+  .subnav a{
+    display:block;font-size:11.3px;color:var(--text-faint);
+    padding:5px 6px;border-radius:4px;text-decoration:none;
+    line-height:1.35;
+    transition:background .15s,color .15s;
+  }
+  .subnav a:hover{background:var(--panel-2);color:var(--text);}
+  .subnav a.seen{color:var(--accent);}
+
+  .sidebar-foot{
+    padding:12px 18px 0;border-top:1px solid var(--border-soft);
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);
+    line-height:1.6;
+  }
+  .sidebar-foot .barwrap{
+    height:4px;background:var(--panel-2);border-radius:3px;overflow:hidden;margin-top:6px;
+  }
+  .sidebar-foot .bar{height:100%;background:var(--accent);width:0%;transition:width .3s ease;box-shadow:0 0 6px var(--accent-glow);}
+
+  /* ---------- main column ---------- */
+  #main{
+    padding:26px 30px 60px;
+    max-width:1180px;
+    width:100%;
+    margin:0 auto;
+  }
+
+  #menuToggle{
+    display:none;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);font-family:var(--mono);cursor:pointer;
+    margin-bottom:14px;
+  }
+
+  .console{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02) inset;
+  }
+  .console-bar{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 16px;
+    background:linear-gradient(180deg,#12161f,#0d1017);
+    border-bottom:1px solid var(--border);
+  }
+  .dots{display:flex;gap:7px;}
+  .dots span{width:11px;height:11px;border-radius:50%;display:block;}
+  .dots .r{background:#ff5f57;}
+  .dots .y{background:#febc2e;}
+  .dots .g{background:#28c840;}
+  .console-title{
+    font-family:var(--mono);font-size:12px;color:var(--text-dim);
+    margin-left:6px;
+  }
+  .console-title b{color:var(--text);}
+  .console-tabs{margin-left:auto;display:flex;gap:6px;}
+  .console-tabs span{
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);
+    padding:4px 10px;border-radius:5px;background:var(--panel-3);
+    border:1px solid var(--border-soft);
+  }
+
+  .console-body{padding:28px 30px 40px;}
+
+  /* hero */
+  .hero{
+    display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;justify-content:space-between;
+    padding-bottom:22px;margin-bottom:26px;border-bottom:1px solid var(--border-soft);
+  }
+  .hero .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--accent);
+    text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .hero .eyebrow::before{content:'●';font-size:8px;}
+  .hero h1{
+    font-family:var(--sans);font-weight:900;font-size:clamp(28px,4vw,44px);
+    margin:0 0 8px;line-height:1.05;letter-spacing:-.02em;
+  }
+  .hero h1 .glow{color:var(--accent);text-shadow:0 0 30px var(--accent-glow);}
+  .hero p.sub{
+    color:var(--text-dim);font-size:14.5px;max-width:560px;margin:0;line-height:1.6;
+  }
+  .prof-card{
+    font-family:var(--mono);font-size:11.5px;color:var(--text-dim);
+    border:1px solid var(--border);border-radius:8px;padding:12px 16px;
+    background:var(--panel-3);min-width:230px;
+  }
+  .prof-card .who{color:var(--text);font-weight:600;font-size:12.5px;margin-bottom:3px;}
+
+  /* group / accordion */
+  .group{
+    border:1px solid var(--border);
+    border-radius:10px;
+    margin-bottom:14px;
+    overflow:hidden;
+    background:var(--panel-3);
+    scroll-margin-top:20px;
+  }
+  .group-head{
+    display:flex;align-items:center;gap:12px;
+    padding:16px 18px;cursor:pointer;
+    user-select:none;
+    transition:background .15s;
+  }
+  .group-head:hover{background:var(--panel-2);}
+  .group-num{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    width:34px;height:34px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--accent-dim);border:1px solid rgba(var(--accent-rgb),.3);
+    flex-shrink:0;font-weight:700;
+  }
+  .group-title{flex:1;}
+  .group-title h2{
+    font-size:17px;margin:0;font-weight:800;letter-spacing:-.01em;
+  }
+  .group-title .cmd{
+    font-family:var(--mono);font-size:10.5px;color:var(--text-faint);margin-top:2px;
+  }
+  .chev{
+    font-family:var(--mono);color:var(--text-faint);transition:transform .25s;font-size:13px;
+  }
+  .group.open .chev{transform:rotate(90deg);color:var(--accent);}
+  .group-content{
+    max-height:0;overflow:hidden;
+    transition:max-height .35s ease;
+    border-top:1px solid transparent;
+  }
+  .group.open .group-content{border-top:1px solid var(--border-soft);}
+  .group-inner{padding:20px 22px 26px;display:flex;flex-direction:column;gap:20px;}
+
+  /* card = a single slide's content */
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border-soft);
+    border-radius:9px;
+    padding:18px 20px;
+    scroll-margin-top:20px;
+  }
+  .card h3{
+    margin:0 0 12px;font-size:14.5px;color:var(--text);
+    font-weight:700;
+    display:flex;align-items:center;gap:8px;
+  }
+  .card h3::before{
+    content:'$';color:var(--accent);font-family:var(--mono);font-weight:700;
+  }
+  .card h4{
+    font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--accent);margin:14px 0 6px;font-weight:700;
+  }
+  .card p{margin:0 0 10px;font-size:13.6px;line-height:1.7;color:var(--text-dim);}
+  .card p b, .card li b{color:var(--text);font-weight:600;}
+  .card ul, .card ol{margin:0 0 10px;padding-left:20px;}
+  .card li{font-size:13.6px;line-height:1.7;color:var(--text-dim);margin-bottom:4px;}
+  .card li::marker{color:var(--accent);}
+  .card em{color:var(--text);font-style:italic;}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:700px){.split{grid-template-columns:1fr;}}
+
+  .badge-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .badge{
+    font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;
+    background:var(--accent-dim);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3);
+  }
+
+  .adv-disadv{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;}
+  @media (max-width:700px){.adv-disadv{grid-template-columns:1fr;}}
+  .adv, .disadv{
+    border-radius:8px;padding:12px 14px;border:1px solid var(--border-soft);
+  }
+  .adv{background:rgba(57,255,136,.06);border-color:rgba(57,255,136,.25);}
+  .disadv{background:rgba(255,43,77,.06);border-color:rgba(255,43,77,.25);}
+  .adv h4{color:#39ff88;margin-top:0;}
+  .disadv h4{color:#ff6b6b;margin-top:0;}
+  .adv li::marker{color:#39ff88;}
+  .disadv li::marker{color:#ff6b6b;}
+
+  table.data{
+    width:100%;border-collapse:collapse;margin:10px 0 6px;
+    font-size:13px;
+  }
+  table.data th{
+    text-align:left;font-family:var(--mono);font-size:11px;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.04em;
+    border-bottom:1px solid var(--border);padding:8px 10px;
+  }
+  table.data td{
+    padding:8px 10px;border-bottom:1px solid var(--border-soft);color:var(--text-dim);
+  }
+  table.data code{
+    font-family:var(--mono);color:var(--text);background:var(--panel-3);
+    padding:2px 6px;border-radius:4px;font-size:12px;border:1px solid var(--border-soft);
+  }
+
+  .diagram-note{
+    font-family:var(--mono);font-size:11px;color:var(--text-faint);
+    text-align:center;margin-top:6px;
+  }
+
+  .flowbox{
+    display:flex;flex-direction:column;align-items:center;gap:4px;margin:14px 0;
+  }
+  .flowbox .fnode{
+    font-family:var(--mono);font-size:12px;color:var(--text);
+    background:var(--panel-3);border:1px solid var(--border);
+    padding:8px 18px;border-radius:6px;text-align:center;min-width:200px;
+  }
+  .flowbox .fnode.hi{border-color:rgba(var(--accent-rgb),.5);color:var(--accent);}
+  .flowbox .farrow{color:var(--text-faint);font-family:var(--mono);}
+
+  .genline{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 4px;
+  }
+  @media (max-width:760px){.genline{grid-template-columns:1fr 1fr;}}
+  .genline .gbox{
+    border:1px solid var(--border);background:var(--panel-3);
+    border-radius:8px;padding:12px 12px;
+  }
+  .genline .gbox .yr{font-family:var(--mono);font-size:10.5px;color:var(--accent);}
+  .genline .gbox .lbl{font-size:12.6px;color:var(--text);margin-top:3px;font-weight:600;line-height:1.4;}
+
+  .refs{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;}
+  .refs li{
+    font-size:12.6px;color:var(--text-dim);padding:10px 12px;
+    background:var(--panel);border:1px solid var(--border-soft);border-radius:7px;
+    font-family:var(--mono);line-height:1.6;
+  }
+  .refs b{color:var(--accent);}
+
+  /* locked overlay */
+  .locked-view{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:80px 20px;gap:14px;
+  }
+  .locked-view .lock-ico{font-size:44px;filter:drop-shadow(0 0 20px var(--accent-glow));}
+  .locked-view h2{margin:0;font-size:22px;}
+  .locked-view p{color:var(--text-dim);max-width:420px;font-size:13.5px;line-height:1.6;}
+  .locked-view button{
+    margin-top:10px;font-family:var(--mono);font-size:12.5px;
+    background:var(--accent-dim);border:1px solid rgba(var(--accent-rgb),.4);
+    color:var(--accent);padding:10px 20px;border-radius:7px;cursor:pointer;
+  }
+  .locked-view button:hover{background:rgba(var(--accent-rgb),.22);}
+
+  /* nav buttons */
+  .stepper{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:8px;padding-top:20px;border-top:1px solid var(--border-soft);
+    gap:12px;flex-wrap:wrap;
+  }
+  .stepbtn{
+    font-family:var(--mono);font-size:12px;
+    background:var(--panel-3);border:1px solid var(--border);
+    color:var(--text-dim);padding:11px 16px;border-radius:8px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;transition:.15s;
+  }
+  .stepbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .stepbtn.primary{background:var(--accent-dim);color:var(--accent);border-color:rgba(var(--accent-rgb),.4);}
+  .stepper .midinfo{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+  /* end-of-chapter primary CTA */
+  .next-chapter-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    margin-top:20px;padding:18px 22px;
+    font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.03em;
+    text-decoration:none;text-align:center;
+    color:#0a0a0f;
+    background:linear-gradient(180deg, var(--accent), #c8102e);
+    border:1px solid rgba(var(--accent-rgb),.6);
+    border-radius:10px;
+    box-shadow:0 14px 30px -14px var(--accent-glow), 0 0 0 1px rgba(255,255,255,.04) inset;
+    transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .next-chapter-btn .bracket{opacity:.65;}
+  .next-chapter-btn .arrow{transition:transform .15s ease;}
+  .next-chapter-btn:hover{
+    filter:brightness(1.08);
+    transform:translateY(-2px);
+    box-shadow:0 18px 36px -14px var(--accent-glow), 0 0 0 1px rgba(255,255,255,.06) inset;
+  }
+  .next-chapter-btn:hover .arrow{transform:translateX(4px);}
+  .next-chapter-btn:active{transform:translateY(0);}
+
+  /* terminal prompt */
+  #termbar{
+    margin-top:22px;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:13px;
+    display:flex;align-items:center;gap:8px;
+  }
+  #termbar .prompt-user{color:var(--accent);}
+  #termbar .prompt-path{color:#2fb5ff;}
+  #termbar .prompt-sym{color:var(--text-faint);}
+  #termbar input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--text);
+    font-family:var(--mono);font-size:13px;
+  }
+  #termOutput{
+    margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--text-dim);
+    min-height:0;white-space:pre-wrap;line-height:1.6;
+  }
+  #termOutput:empty{display:none;}
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+
+  footer.pageend{
+    text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-faint);
+    margin-top:26px;
+  }
+</style>
+</head>
+<body data-chapter="1">
+
+<div id="bootlog"></div>
+
+<div id="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="tag">Parul University // CSE</div>
+      <div class="title"><span class="dotpulse"></span> OS_Guide.sh</div>
+    </div>
+
+    <nav class="filetree">
+      <div class="path-root">~/root/OS_Guide/</div>
+
+      <a class="chapter-item active" href="unit1.html" data-chapter="1">
+        <span class="ico">📂</span>
+        <span class="fname">unit1.html</span>
+        <small>active</small>
+      </a>
+      <div class="subnav" id="subnav-1">
+        <a href="#g1" data-target="g1">01. Concepts of OS</a>
+        <a href="#g2" data-target="g2">02. What is an OS? / Goals</a>
+        <a href="#g3" data-target="g3">03. Generations of OS</a>
+        <a href="#g4" data-target="g4">04. PC &amp; Mobile OS Examples</a>
+        <a href="#g5" data-target="g5">05. Types of Operating Systems</a>
+        <a href="#g6" data-target="g6">06. Operating System Services</a>
+        <a href="#g7" data-target="g7">07. System Calls</a>
+        <a href="#g8" data-target="g8">08. OS Structure &amp; Layers</a>
+        <a href="#g9" data-target="g9">09. Kernel Approaches &amp; VM</a>
+        <a href="#g10" data-target="g10">10. References</a>
+      </div>
+
+      <a class="chapter-item" href="unit2.html" data-chapter="2">
+        <span class="ico">📄</span><span class="fname">unit2.html</span>
+      </a>
+      <a class="chapter-item" href="unit3.html" data-chapter="3">
+        <span class="ico">📄</span><span class="fname">unit3.html</span>
+      </a>
+      <a class="chapter-item" href="unit4.html" data-chapter="4">
+        <span class="ico">📄</span><span class="fname">unit4.html</span>
+      </a>
+      <a class="chapter-item" href="unit5.html" data-chapter="5">
+        <span class="ico">📄</span><span class="fname">unit5.html</span>
+      </a>
+      <a class="chapter-item" href="unit6.html" data-chapter="6">
+        <span class="ico">📄</span><span class="fname">unit6.html</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      module: <b style="color:var(--text)">Chapter 1 — Introduction</b><br>
+      read progress
+      <div class="barwrap"><div class="bar" id="progressBar"></div></div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main id="main">
+    <div id="menuToggle">☰</div>
+
+    <div class="console">
+      <div class="console-bar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="console-title">root@parul-university:~$ <b>cat ch1_intro.sh</b></div>
+        <div class="console-tabs"><span>ch1_intro.sh</span></div>
+      </div>
+
+      <div class="console-body" id="consoleBody">
+
+        <div class="hero">
+          <div>
+            <div class="eyebrow">Chapter&nbsp;1 · Introduction</div>
+            <h1>Operating <span class="glow">System</span></h1>
+            <p class="sub">A complete, verbatim interactive walkthrough of Unit 1 — concepts, generations, types, services, system calls, structure and kernel approaches — rendered as a Linux-flavoured terminal guide.</p>
+          </div>
+          <div class="prof-card">
+            <div class="who">Prof. Abhijitsinh Parmar</div>
+            Assistant Professor<br>
+            Computer Science &amp; Engineering<br>
+            Parul Institute of Technology
+          </div>
+        </div>
+
+        <!-- ================= GROUP 1 ================= -->
+        <div class="group open" id="g1">
+          <div class="group-head" onclick="toggleGroup('g1')">
+            <div class="group-num">01</div>
+            <div class="group-title"><h2>Concepts of Operating System</h2><div class="cmd">./software_hardware.sh --types</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Concepts of Operating System</h3>
+                <div class="split">
+                  <div>
+                    <h4>Software:-</h4>
+                    <ul>
+                      <li>Program is a collection of code/instruction.</li>
+                      <li>Software is a collection of program.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>Hardware:-</h4>
+                    <ul>
+                      <li>Physical device is a collection of computer system which is called Hardware.</li>
+                    </ul>
+                  </div>
+                </div>
+                <p><em>Example:</em> <b>Processor, RAM, Hard disk, I/O devices.</b></p>
+              </div>
+
+              <div class="card">
+                <h3>Concepts of Operating System</h3>
+                <h4>Types of Software:-</h4>
+                <p>Software is divide into 3 types:</p>
+                <ol>
+                  <li>System software</li>
+                  <li>Utility software</li>
+                  <li>Application software</li>
+                </ol>
+              </div>
+
+              <div class="card">
+                <h3>System Software</h3>
+                <p>The software which is used to perform all types of system level tasks of computer is called system software.</p>
+                <h4>For example:</h4>
+                <ul>
+                  <li>Compiler</li>
+                  <li>Operating system</li>
+                  <li>Interpreter</li>
+                  <li>Linker</li>
+                  <li>Loader</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Utility Software</h3>
+                <p>The software, which provide an additional meaning to the computer system.</p>
+                <h4>For Example:-</h4>
+                <ul>
+                  <li>Calculator</li>
+                  <li>MS-paint</li>
+                  <li>Browser</li>
+                  <li>Notepad</li>
+                  <li>Media Player</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Application Software</h3>
+                <p>The software which is created by users, using the different high level language and database system for any special purpose.</p>
+                <h4>For Example:-</h4>
+                <ul>
+                  <li>Library Management system</li>
+                  <li>Banking Software</li>
+                  <li>Ticket Reservation system</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 2 ================= -->
+        <div class="group" id="g2">
+          <div class="group-head" onclick="toggleGroup('g2')">
+            <div class="group-num">02</div>
+            <div class="group-title"><h2>What is an Operating System? / Goals</h2><div class="cmd">./os_definition.sh --goals</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>What is an Operating System?</h3>
+                <p>An operating system (OS) is a collection of system software that manages computer hardware resources and provides common services for computer programs.</p>
+                <p style="text-align:center;font-family:var(--mono);color:var(--text-faint);">OR</p>
+                <p>A program that acts as an intermediary/interface between a user of a computer and the computer hardware.</p>
+              </div>
+
+              <div class="card">
+                <h3>What is an Operating System?</h3>
+                <p>Users and Processes access the Computer's resources through the Operating System</p>
+                <div class="flowbox">
+                  <div class="fnode">Human users</div>
+                  <div class="farrow">↕</div>
+                  <div class="fnode">Application software</div>
+                  <div class="farrow">↕</div>
+                  <div class="fnode hi">Operating system</div>
+                  <div class="farrow">↕</div>
+                  <div class="fnode">Other system software</div>
+                  <div class="farrow">↕</div>
+                  <div class="fnode">Hardware</div>
+                </div>
+                <div class="diagram-note">Operating System Approach [6]</div>
+              </div>
+
+              <div class="card">
+                <h3>Goals of an Operating System</h3>
+                <ul>
+                  <li>Simplify the execution of user programs and make solving user problems easier</li>
+                  <li>Use computer hardware efficiently</li>
+                  <li>Allow sharing of hardware and software resources.</li>
+                  <li>Make application software portable and flexible</li>
+                  <li>Provide isolation, security and protection among user programs</li>
+                  <li>Improve overall system reliability like Error confinement, Fault tolerance, Reconfiguration.</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 3 ================= -->
+        <div class="group" id="g3">
+          <div class="group-head" onclick="toggleGroup('g3')">
+            <div class="group-num">03</div>
+            <div class="group-title"><h2>Generations of Operating Systems</h2><div class="cmd">./history.sh --gen 1..4</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Generations of Operating Systems</h3>
+                <p>It's also known as history of Operating systems.</p>
+                <p>Which can be divided in 4 generations</p>
+                <div class="genline">
+                  <div class="gbox"><div class="yr">First Generation (1945-1955)</div><div class="lbl">Vacuum Tubes &amp; Plug boards</div></div>
+                  <div class="gbox"><div class="yr">Second Generation (1955-1965)</div><div class="lbl">Transistors &amp; Batch Systems</div></div>
+                  <div class="gbox"><div class="yr">Third Generation (1965-1980)</div><div class="lbl">Integrated Circuits &amp; Multi programming</div></div>
+                  <div class="gbox"><div class="yr">Fourth Generation (1980-Current)</div><div class="lbl">Personal Computers</div></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>The First Generation (1945-1955): Vacuum Tubes</h3>
+                <ul>
+                  <li>Digital computers were not constructed until the second world war.</li>
+                  <li>Calculating engines with mechanical relays were built at that time.</li>
+                  <li>However, the mechanical relays were very slow and were later replaced with vacuum tubes.</li>
+                  <li>These machines were enormous but were still very slow.</li>
+                </ul>
+                <div class="diagram-note">Vacuum Tubes Source: Google · 1940s computers Source: Google</div>
+              </div>
+
+              <div class="card">
+                <h3>The First Generation (1945-1955): Plugboards</h3>
+                <p>Programming languages were unknown and there were no operating systems so all the programming was done in machine language. All the problems were simple numerical calculations.</p>
+                <p>By the 1950's punch cards were introduced and this improved the computer system. Instead of using plugboards, programs were written on cards and read into the system.</p>
+                <div class="diagram-note">Plugboards Source: Google</div>
+              </div>
+
+              <div class="card">
+                <h3>The Second Generation(1955-1965)</h3>
+                <h4>Transistors &amp; Batch Systems</h4>
+                <p>Transistors led to the development of the computer systems that could be manufactured and sold to paying customers. These machines were known as mainframes and were locked in air-conditioned computer rooms with staff to operate them.</p>
+                <p>The Batch System was introduced to reduce the wasted time in the computer. A tray full of jobs was collected in the input room and read into the magnetic tape.</p>
+              </div>
+
+              <div class="card">
+                <h3>The Third Generation (1965-1980)</h3>
+                <h4>Integrated Circuits &amp; Multiprogramming</h4>
+                <p>Until the 1960's, there were two types of computer systems i.e the scientific and the commercial computers. These were combined by IBM in the System/360. This used integrated circuits and provided a major price and performance advantage over the second generation systems.</p>
+                <p>The third generation operating systems also introduced multiprogramming. This meant that the processor was not idle while a job was completing its I/O operation. Another job was scheduled on the processor so that its time would not be wasted.</p>
+              </div>
+
+              <div class="card">
+                <h3>The Fourth Generation (1980-Present)</h3>
+                <h4>Personal Computers</h4>
+                <p>Personal Computers were easy to create with the development of large-scale integrated circuits. These were chips containing thousands of transistors on a square centimetre of silicon.</p>
+                <p>The advent of personal computers also led to the growth of networks. This created network operating systems and distributed operating systems. The users were aware of a network while using a network operating system and could log in to remote machines and copy files from one machine to another.</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 4 ================= -->
+        <div class="group" id="g4">
+          <div class="group-head" onclick="toggleGroup('g4')">
+            <div class="group-num">04</div>
+            <div class="group-title"><h2>Examples of Personal Computer &amp; Mobile Operating Systems</h2><div class="cmd">ls -la /os/examples</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Examples of Personal Computer Operating Systems</h3>
+                <h4>Microsoft Windows</h4>
+                <ul>
+                  <li>Microsoft created the Windows operating system in the mid-1980s.</li>
+                  <li>Most recent versions are Windows 10 (released in 2015), Windows 8 (2012), Windows 7 (2009), and Windows Vista (2007).</li>
+                  <li>Windows comes pre-loaded on most new PCs, which helps to make it the most popular operating system in the world.</li>
+                </ul>
+                <div class="diagram-note">Windows 10</div>
+              </div>
+
+              <div class="card">
+                <h3>Examples of Personal Computer Operating Systems</h3>
+                <h4>Mac OS</h4>
+                <ul>
+                  <li>Mac OS is a line of operating systems created by Apple.</li>
+                  <li>It comes preloaded on all new Macintosh computers, or Macs.</li>
+                  <li>Specific versions include El Capitan (released in 2015), Yosemite (2014), Mavericks (2013), Mountain Lion (2012), and Lion (2011).</li>
+                </ul>
+                <div class="diagram-note">macOS Source: Google</div>
+              </div>
+
+              <div class="card">
+                <h3>Examples of Personal Computer Operating Systems</h3>
+                <h4>Linux</h4>
+                <ul>
+                  <li>Linux (pronounced LINN-ux) is a family of open-source operating systems, which means they can be modified and distributed by anyone around the world.</li>
+                  <li>The advantages of Linux are that it is free, and there are many different distributions or versions you can choose from.</li>
+                </ul>
+                <div class="diagram-note">Ubuntu OS Source: Google</div>
+              </div>
+
+              <div class="card">
+                <h3>Operating systems for mobile devices</h3>
+                <ul>
+                  <li>Mobile devices such as smartphones, tablets, and MP3 players are different from desktop and laptop computers, so they run operating systems that are designed specifically for mobile devices.</li>
+                  <li>Examples of mobile OS - Apple iOS and Google Android.</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 5 ================= -->
+        <div class="group" id="g5">
+          <div class="group-head" onclick="toggleGroup('g5')">
+            <div class="group-num">05</div>
+            <div class="group-title"><h2>Types of Operating Systems</h2><div class="cmd">./types.sh --enumerate</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Types of Operating Systems</h3>
+                <ul>
+                  <li>Simple Batch System</li>
+                  <li>Multiprogramming Batch System</li>
+                  <li>Multitasking system</li>
+                  <li>Multiprocessor System</li>
+                  <li>Distributed Operating System</li>
+                  <li>Real-time Operating System</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>SIMPLE BATCH SYSTEMS</h3>
+                <ul>
+                  <li><b>No direct interaction</b> between user and computer.</li>
+                  <li>The user has to <b>submit a job</b> (written on cards or tape) to a computer operator.</li>
+                  <li>Then computer operator places a <b>batch of several jobs</b> on an input device.</li>
+                </ul>
+                <div class="flowbox">
+                  <div class="fnode">User → job → OS → jobs → Batch → CPU</div>
+                </div>
+                <div class="diagram-note">Batch OS (Source)</div>
+                <div class="adv-disadv">
+                  <div class="adv">
+                    <h4>Advantages</h4>
+                    <ul>
+                      <li>Increased performance - next job start as the previous job finished.</li>
+                      <li>Suitable for executing large jobs that need little interaction</li>
+                    </ul>
+                  </div>
+                  <div class="disadv">
+                    <h4>Disadvantages</h4>
+                    <ul>
+                      <li>Zero interaction between user and computer.</li>
+                      <li>No mechanism to prioritize processes.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Multiprogramming Batch Operating System</h3>
+                <p>Several jobs are kept in main memory at the same time, and the CPU is multiplexed among them.</p>
+                <p>Multiprogramming increases CPU utilization</p>
+                <p>Multiple jobs are loaded into main memory and one is selected from pool for execution by CPU</p>
+                <p>If at some point program in progress requires service of a peripheral device, the control of CPU is given to next job which is in main memory</p>
+                <p>So, CPU is always executing some program instead of waiting.</p>
+                <p>CPU usage is poor when only one program is present in memory (Uniprogramming: Run → Wait → Run → Wait).</p>
+                <p>If memory can hold several programs, then CPU can switch to another one whenever a program is awaiting for an I/O to complete. This is multitasking (multiprogramming) — Programs A, B and C interleave Run/Wait states so the combined CPU timeline stays busy.</p>
+                <div class="diagram-note">Multiprogramming (Source)</div>
+
+                <h4>Effects of Multiprogramming</h4>
+                <table class="data">
+                  <thead><tr><th></th><th>Uniprogramming</th><th>Multiprogramming</th></tr></thead>
+                  <tbody>
+                    <tr><td>Processor use</td><td>17%</td><td>33%</td></tr>
+                    <tr><td>Memory use</td><td>30%</td><td>67%</td></tr>
+                    <tr><td>Disk use</td><td>33%</td><td>67%</td></tr>
+                    <tr><td>Printer use</td><td>33%</td><td>67%</td></tr>
+                    <tr><td>Elapsed time</td><td>30 min.</td><td>15 min.</td></tr>
+                    <tr><td>Throughput rate</td><td>6 jobs/hr</td><td>12 jobs/hr</td></tr>
+                    <tr><td>Mean response time</td><td>18 min.</td><td>10 min.</td></tr>
+                  </tbody>
+                </table>
+                <div class="diagram-note">Effects of Multiprogramming (Source)</div>
+
+                <div class="adv-disadv">
+                  <div class="adv">
+                    <h4>Advantages</h4>
+                    <ul>
+                      <li>High CPU utilization, so CPU never sits idle, if there are jobs available</li>
+                      <li>Many programs are allotted CPU almost simultaneously.</li>
+                      <li>Provides better resource utilization (Memory, I/O, CPU)</li>
+                      <li>More then one process can be executed simultaneously by user.</li>
+                    </ul>
+                  </div>
+                  <div class="disadv">
+                    <h4>Disadvantages</h4>
+                    <ul>
+                      <li>CPU scheduling is required.</li>
+                      <li>Memory management is required, to accommodate many jobs in memory</li>
+                      <li>Multiprogramming does not support interaction with users</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Multitasking/Time Sharing System(TSS)</h3>
+                <ul>
+                  <li>Multiprogramming does not support interaction with users, TSS extends multiprogramming to handle multiple interactive jobs</li>
+                  <li>TSS uses CPU scheduling &amp; multiprogramming to provide economical interactive systems of two or more users.</li>
+                  <li>Each user is given a time-slice for executing his job in Round-Robin Fashion ( Every process will be given equal amount of CPU one by one in sequence). Job continues until the time slice ends.</li>
+                  <li>The CPU is multiplexed among several jobs that are kept in main memory.</li>
+                  <li>TSS allows more frequent context switches from one user to the next (when time-slice of particular process ends it switches to the next for given time slice duration)</li>
+                  <li>This gives each user the impression that the entire computer is dedicated to his use only, whereas actually one computer is being shared among many users.</li>
+                </ul>
+                <div class="adv-disadv">
+                  <div class="adv">
+                    <h4>Advantages</h4>
+                    <ul>
+                      <li>Provides Quick Response</li>
+                      <li>Reduces CPU idle time</li>
+                    </ul>
+                  </div>
+                  <div class="disadv">
+                    <h4>Disadvantages</h4>
+                    <ul>
+                      <li>Security &amp; Integrity of user's program &amp; data is needed.</li>
+                      <li>If lots of users &amp; applications are running then it may hang up the system. So, high configuration of hardware is required.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Multiprocessor/Parallel System</h3>
+                <ul>
+                  <li><b>Multiprocessor systems</b> with more than one CPU works in close communication.</li>
+                  <li><b>Tightly coupled system</b> – processors share memory and I/O devices, bus, system and communication usually takes place through the shared memory.</li>
+                  <li>A multiprocessor system comprises of several processors that share a common physical memory.</li>
+                  <li>Multiprocessor system delivers higher computing power and speed.</li>
+                  <li>In multiprocessor system all processors function under single operating system.</li>
+                </ul>
+                <div class="adv">
+                  <h4>Advantages</h4>
+                  <ul>
+                    <li><b>Increased throughput:</b> No. of jobs executed per unit time increased as there are more no. of processors.</li>
+                    <li><b>Economical:</b> Buying one system with 3 CPU is cheaper than 3 systems with 3 different CPUs. The processors can share peripherals, cabinets and power supplies.</li>
+                    <li><b>Increased reliability:</b> The failure of one processor will not stop the system, it functions with other available processors.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Real Time System</h3>
+                <p>A real-time operating system (RTOS) promises a certain capability within a specified time constraint.</p>
+                <p>It is defined as an operating system known to give maximum time for each of the critical operations that it performs, like OS calls and interrupt handling.</p>
+                <div class="split">
+                  <div>
+                    <h4>Hard real-time system</h4>
+                    <ul>
+                      <li>The Real-Time Operating system which guarantees the maximum time for critical operations and complete them on time are referred to as Hard Real-Time Operating Systems.</li>
+                      <li>If the system fails to meet the deadline even once the system is considered to have Failed.</li>
+                      <li>E.g. Defence applications, nuclear system etc. Missing deadlines creates hazards.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>Soft real-time system</h4>
+                    <ul>
+                      <li>The critical task will get priority over other tasks, but no assurity of completing it in a defined time. These systems are referred to as Soft Real-Time Operating Systems.</li>
+                      <li>It is less restrictive type of OS. even if the system fails to meet the deadline, the system is not considered to have failed. In this case the results of the requests are not worthless.</li>
+                      <li>E.g. Audio-Video streaming etc.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Distributed System</h3>
+                <ul>
+                  <li>Distribute the computation among several physical processors.</li>
+                  <li>Distributed OS is an OS that runs on several machines and it controls the resources of several machines.</li>
+                  <li><b>Loosely coupled system</b> – each processor has its own local memory; processors communicate with one another through various communications lines, such as high-speed buses or telephone lines.</li>
+                </ul>
+                <div class="diagram-note">Distributed OS (Source) — CPU/Disk/Memory nodes linked via a Communication Network</div>
+                <div class="adv">
+                  <h4>Advantages</h4>
+                  <ul>
+                    <li>Resources Sharing</li>
+                    <li>Computation speed up due to load sharing . So, Short response time and higher throughput.</li>
+                    <li>Higher Reliability: Degree of tolerance against failure</li>
+                    <li>Incremental Growth : to extend functionality of a system by simply adding additional resources to the system</li>
+                  </ul>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 6 ================= -->
+        <div class="group" id="g6">
+          <div class="group-head" onclick="toggleGroup('g6')">
+            <div class="group-num">06</div>
+            <div class="group-title"><h2>Operating System Services</h2><div class="cmd">./services.sh --list-all</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Operating System Services</h3>
+                <p><b>User Interface:</b> Almost all operating systems have a user interface (UI). Varies between Command-Line (CLI), Graphics User Interface (GUI), Batch Interfaces</p>
+                <p><b>Program execution:</b> The system must be able to load a program into memory and to run that program, must be able to end execution, either normally or abnormally (indicating error)</p>
+                <p><b>I/O operations:</b> A running program may require I/O, which may involve a file or an I/O device, user programs cannot execute I/O operations directly, the operating system must provide some means to do I/O.</p>
+              </div>
+
+              <div class="card">
+                <h3>Operating System Services</h3>
+                <p><b>File-system manipulation:</b> Programs need to read and write files and directories, create and delete them, search them, list file Information, permission management; allow or deny access to files/directories based on file ownership.</p>
+                <p><b>Communications:</b> Exchange of information between processes executing either on the same computer or on different systems tied together by a network. Implemented via shared memory or message passing.</p>
+              </div>
+
+              <div class="card">
+                <h3>Operating System Services</h3>
+                <p><b>Error detection</b> – OS needs to be constantly aware of possible errors</p>
+                <ul>
+                  <li>May occur in the CPU and memory hardware, in I/O devices, in user program</li>
+                  <li>For each type of error, OS should take the appropriate action to ensure correct and consistent computing</li>
+                  <li>Debugging facilities can greatly enhance the user's and programmer's abilities to efficiently use the system</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Some Additional OS Services</h3>
+                <p><b>Resource allocation:</b> When multiple users or multiple jobs running concurrently, resources must be allocated to each of them. Many types of resources - Some (such as CPU cycles, main memory, and file storage) may have special allocation code, others (such as I/O devices) may have general request and release code.</p>
+                <p><b>Accounting:</b> To keep track of which users use how much and what kinds of computer resources. Used for accounting or usage statistics.</p>
+              </div>
+
+              <div class="card">
+                <h3>Some Additional OS Services</h3>
+                <p><b>Protection</b> involves ensuring that all access to system resources is controlled</p>
+                <p><b>Security</b> of the system from outsiders requires user authentication (by password), extends to defending external I/O devices (eg. Modems, network adapter from invalid access attempts .</p>
+                <p><b>Protection and security:</b> The owners of information stored in a multiuser or networked computer system may want to control use of that information, concurrent processes should not interfere with each other.</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 7 ================= -->
+        <div class="group" id="g7">
+          <div class="group-head" onclick="toggleGroup('g7')">
+            <div class="group-num">07</div>
+            <div class="group-title"><h2>System Calls</h2><div class="cmd">man syscalls</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>System Calls</h3>
+                <p>System call is a request made by user program in order to get the service of an operating system.</p>
+                <p>When a program in user mode requires access to RAM or a hardware resource, it must ask the kernel to provide access to that resource. This is done via something called a system call.</p>
+                <div class="split">
+                  <div>
+                    <h4>Kernel Mode</h4>
+                    <ul>
+                      <li>When CPU is in kernel mode, the code being executed can access any memory address and any hardware resource.</li>
+                      <li>Hence kernel mode is a very privileged and powerful mode.</li>
+                      <li>If a program crashes in kernel mode, the entire system will be halted.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>User Mode</h4>
+                    <ul>
+                      <li>When CPU is in user mode, the programs don't have direct access to memory and hardware resources.</li>
+                      <li>In user mode, if any program crashes, only that particular program is halted. That means the system will be in a safe state even if a program in user mode crashes.</li>
+                      <li>Hence, most programs in an OS run in user mode.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="diagram-note">OS modes (Source)</div>
+              </div>
+
+              <div class="card">
+                <h3>System Calls For Process Management</h3>
+                <table class="data">
+                  <thead><tr><th>Call</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>pid = fork( )</code></td><td>Create a child process identical to the parent</td></tr>
+                    <tr><td><code>pid = waitpid(pid, &amp;statloc, options)</code></td><td>Wait for a child to terminate</td></tr>
+                    <tr><td><code>s = execve(name, argv, environp)</code></td><td>Replace a process' core image</td></tr>
+                    <tr><td><code>exit(status)</code></td><td>Terminate process execution and return status</td></tr>
+                  </tbody>
+                </table>
+                <div class="diagram-note">System Call [3]</div>
+              </div>
+
+              <div class="card">
+                <h3>System Calls For File Management</h3>
+                <table class="data">
+                  <thead><tr><th>Call</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>fd = open(file, how, ...)</code></td><td>Open a file for reading, writing or both</td></tr>
+                    <tr><td><code>s = close(fd)</code></td><td>Close an open file</td></tr>
+                    <tr><td><code>n = read(fd, buffer, nbytes)</code></td><td>Read data from a file into a buffer</td></tr>
+                    <tr><td><code>n = write(fd, buffer, nbytes)</code></td><td>Write data from a buffer into a file</td></tr>
+                    <tr><td><code>position = lseek(fd, offset, whence)</code></td><td>Move the file pointer</td></tr>
+                    <tr><td><code>s = stat(name, &amp;buf)</code></td><td>Get a file's status information</td></tr>
+                  </tbody>
+                </table>
+                <div class="diagram-note">System Call [3]</div>
+              </div>
+
+              <div class="card">
+                <h3>System Calls For Directory Management</h3>
+                <table class="data">
+                  <thead><tr><th>Call</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>s = mkdir(name, mode)</code></td><td>Create a new directory</td></tr>
+                    <tr><td><code>s = rmdir(name)</code></td><td>Remove an empty directory</td></tr>
+                    <tr><td><code>s = link(name1, name2)</code></td><td>Create a new entry, name2, pointing to name1</td></tr>
+                    <tr><td><code>s = unlink(name)</code></td><td>Remove a directory entry</td></tr>
+                    <tr><td><code>s = mount(special, name, flag)</code></td><td>Mount a file system</td></tr>
+                    <tr><td><code>s = umount(special)</code></td><td>Unmount a file system</td></tr>
+                  </tbody>
+                </table>
+                <div class="diagram-note">System Call [3]</div>
+              </div>
+
+              <div class="card">
+                <h3>System Calls For Miscellaneous Tasks</h3>
+                <table class="data">
+                  <thead><tr><th>Call</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>s = chdir(dirname)</code></td><td>Change the working directory</td></tr>
+                    <tr><td><code>s = chmod(name, mode)</code></td><td>Change a file's protection bits</td></tr>
+                    <tr><td><code>s = kill(pid, signal)</code></td><td>Send a signal to a process</td></tr>
+                    <tr><td><code>seconds = time(&amp;seconds)</code></td><td>Get the elapsed time since Jan. 1, 1970</td></tr>
+                  </tbody>
+                </table>
+                <div class="diagram-note">System Call [3]</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 8 ================= -->
+        <div class="group" id="g8">
+          <div class="group-head" onclick="toggleGroup('g8')">
+            <div class="group-num">08</div>
+            <div class="group-title"><h2>OS Structure, Layers &amp; Components</h2><div class="cmd">./structure.sh --tree</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Operating System layered structure</h3>
+                <div class="flowbox">
+                  <div class="fnode">Web browser · E-mail reader · Music player</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">User interface program <small style="color:var(--text-faint)">(User mode)</small></div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode hi">Operating system <small style="color:var(--text-faint)">(Kernel mode)</small></div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">Hardware</div>
+                </div>
+                <div class="diagram-note">Where the operating system fits in [3]</div>
+
+                <p style="margin-top:14px;">With the layered approach, the bottom layer is the hardware, while the highest layer is the user interface.</p>
+                <ul>
+                  <li>Advantage is simplicity of construction and debugging.</li>
+                  <li>The main difficulty is defining the various layers.</li>
+                  <li>The main disadvantage is that the OS tends to be less efficient than other implementations</li>
+                </ul>
+                <div class="flowbox">
+                  <div class="fnode">Application Program &nbsp;···&nbsp; Application Program</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">System Services</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">File System</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">Memory and I/O Device Management</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">Processor &amp; Scheduling</div>
+                  <div class="farrow">↓</div>
+                  <div class="fnode">Hardware</div>
+                </div>
+                <div class="diagram-note">Operating System Layers (Source)</div>
+              </div>
+
+              <div class="card">
+                <h3>Operating System Structure - Components</h3>
+                <ul>
+                  <li>Process Management</li>
+                  <li>Main Memory Management</li>
+                  <li>File Management</li>
+                  <li>I/O System Management</li>
+                  <li>Secondary Management</li>
+                  <li>Networking</li>
+                  <li>Protection System</li>
+                  <li>Command-Interpreter System</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Process Management</h3>
+                <p>A process is a program in execution. A process needs certain resources, including CPU time, memory, files, and I/O devices, to accomplish its task.</p>
+                <p>The operating system is responsible for the following activities in connection with process management.</p>
+                <ul>
+                  <li>Process creation and deletion.</li>
+                  <li>process suspension and resumption.</li>
+                  <li>Deadlock handling</li>
+                  <li>Provision of mechanisms for:</li>
+                  <li>process synchronization</li>
+                  <li>process communication</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Memory Management</h3>
+                <p>Memory is a large array of words or bytes, each with its own address. It is a repository of quickly accessible data shared by the CPU and I/O devices.</p>
+                <p>Main memory is a volatile storage device. It loses its contents in the case of system failure.</p>
+                <p>The operating system is responsible for the following activities in connections with memory management:</p>
+                <ul>
+                  <li>Keep track of which parts of memory are currently being used and by whom.</li>
+                  <li>Decide which processes to load when memory space becomes available.</li>
+                  <li>Allocate and deallocate memory space as needed.</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>File Management</h3>
+                <p>A file is a collection of related information defined by its creator. Commonly, files represent programs (both source and object forms) and data.</p>
+                <p>The operating system is responsible for the following activities in connections with file management:</p>
+                <ul>
+                  <li>File creation and deletion.</li>
+                  <li>Directory creation and deletion.</li>
+                  <li>Support of primitives for manipulating files and directories.</li>
+                  <li>Mapping files onto secondary storage.</li>
+                  <li>File backup on stable (nonvolatile) storage media.</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>I/O System Management</h3>
+                <p>The I/O system consists of:</p>
+                <ul>
+                  <li>A buffer-caching system</li>
+                  <li>A general device-driver interface</li>
+                  <li>Drivers for specific hardware devices</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Secondary-Storage Management</h3>
+                <p>Since main memory (primary storage) is volatile and too small to accommodate all data and programs permanently, the computer system must provide secondary storage to back up main memory.</p>
+                <p>Most modern computer systems use disks as the principle on-line storage medium, for both programs and data.</p>
+                <p>OS is responsible for the following activities with disk management:</p>
+                <ul>
+                  <li>Free space management</li>
+                  <li>Storage allocation</li>
+                  <li>Disk scheduling</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Networking</h3>
+                <p>A distributed system is a collection processors that do not share memory or a clock. Each processor has its own local memory.</p>
+                <p>The processors in the system are connected through a communication network. Communication takes place using a protocol. A distributed system provides user access to various system resources.</p>
+                <p>Access to a shared resource allows:</p>
+                <ul>
+                  <li>Computation speed-up</li>
+                  <li>Increased data availability</li>
+                  <li>Enhanced reliability</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Protection</h3>
+                <p>Protection refers to a mechanism for controlling access by programs, processes, or users to both system and user resources.</p>
+                <p>The protection mechanism must:</p>
+                <ul>
+                  <li>Distinguish between authorized and unauthorized usage.</li>
+                  <li>Specify the controls to be imposed.</li>
+                  <li>Provide a means of enforcement.</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3>Command-Interpreter System</h3>
+                <p>The program that reads and interprets control statements is called variously:</p>
+                <ul>
+                  <li>command-line interpreter</li>
+                  <li>shell (in UNIX)</li>
+                </ul>
+                <p>Its function is to get and execute the next command statement.</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 9 ================= -->
+        <div class="group" id="g9">
+          <div class="group-head" onclick="toggleGroup('g9')">
+            <div class="group-num">09</div>
+            <div class="group-title"><h2>Kernel Approaches &amp; Virtual Machine</h2><div class="cmd">./kernel.sh --approach monolithic|micro</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+
+              <div class="card">
+                <h3>Monolithic Approach</h3>
+                <ul>
+                  <li>Functionality of the OS is activated with simple function calls within the kernel, Monolithic kernel is one large program.</li>
+                  <li>Device drivers are loaded into the running kernel and become part of the kernel.</li>
+                </ul>
+                <div class="diagram-note">Interactive User → Libraries / Commands / Application Programs → OS System Call Interface → Trap Table → Monolithic Kernel Module (Process Management · Memory Management · File Management · Device Mgmt Infrastructure) → Device Driver(s)</div>
+                <div class="diagram-note">Monolithic Kernel [5]</div>
+              </div>
+
+              <div class="card">
+                <h3>Microkernel Approach</h3>
+                <ul>
+                  <li>Microkernel structures the OS by removing all unnecessary parts of the kernel and implement them as system and user level programs.</li>
+                  <li>They offers minimal process and memory management, and a communications facility.</li>
+                  <li>Communication between components is done by message passing.</li>
+                </ul>
+                <div class="diagram-note">Libraries / Process(es) — User &amp; Supervisor split — Server / Server / Server / Device Drivers → Microkernel → Processor(s) / Main Memory / Devices</div>
+                <div class="diagram-note">Microkernel Approach [5]</div>
+
+                <div class="adv-disadv">
+                  <div class="adv">
+                    <h4>Advantage</h4>
+                    <ul>
+                      <li>Operating system can be easily extended</li>
+                      <li>Kernel is smaller, so very few changes are required in it.</li>
+                      <li>It offers more security and reliability.</li>
+                    </ul>
+                  </div>
+                  <div class="disadv">
+                    <h4>Disadvantage</h4>
+                    <ul>
+                      <li>It has poor performance due to increased system overhead of message passing.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Virtual Machine</h3>
+                <p>Virtual machine does abstract the hardware of a single computer (the CPU, Memory, Disk drives, Network Interface Cards) into several different execution environments and thereby creating the illusion that each separate execution environment is running its own PC/environment.</p>
+                <div class="diagram-note">Non-Virtual Machine &amp; Virtual Machine [1] — processes → kernel → hardware, versus processes → kernel(VM1) / kernel(VM2) / kernel(VM3) → virtual-machine implementation → hardware</div>
+                <p>Virtual Machine(VM) is also known as a guest machine, which is created within another computing environment known as a "host".</p>
+                <p>Multiple VM can be present within a single host at one time.</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= GROUP 10 ================= -->
+        <div class="group" id="g10">
+          <div class="group-head" onclick="toggleGroup('g10')">
+            <div class="group-num">10</div>
+            <div class="group-title"><h2>References</h2><div class="cmd">cat REFERENCES.md</div></div>
+            <div class="chev">▶</div>
+          </div>
+          <div class="group-content">
+            <div class="group-inner">
+              <div class="card">
+                <h3>References</h3>
+                <ul class="refs">
+                  <li><b>[1]</b> Silberschatz, A., Galvin, P. B., &amp; Gagne, G. (2005). Operating system concepts. Hoboken, NJ: J. Wiley &amp; Sons.</li>
+                  <li><b>[2]</b> Stallings, W. (2018). Operating systems: Internals and design principles. Prentice-Hall</li>
+                  <li><b>[3]</b> Tanenbaum, A. (2014). Modern operating systems. Harlow: Pearson.</li>
+                  <li><b>[4]</b> Nutt, G. J. (2004). Operating systems: A modern perspective. Boston: Pearson/Addison Wesley.</li>
+                  <li><b>[5]</b> Bower T. Operating System Structure. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/struct.html</li>
+                  <li><b>[6]</b> Bower T. Basic Operating System Concepts. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/OSrole.html</li>
+                  <li><b>[7]</b> Operating System Generations. Tutorialspoint. https://www.tutorialspoint.com/operating-system-generations</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stepper">
+          <button class="stepbtn" onclick="prevModule()">← Previous Section</button>
+          <div class="midinfo" id="stepInfo">module 1 / 10</div>
+          <button class="stepbtn" onclick="nextModule()">Next Section →</button>
+        </div>
+
+        <a id="nextModuleBtn" class="next-chapter-btn" href="unit2.html">
+          <span class="bracket">[</span> EXECUTE NEXT MODULE: unit2.html <span class="arrow">→</span> <span class="bracket">]</span>
+        </a>
+
+        <!-- terminal prompt -->
+        <div id="termbar">
+          <span class="prompt-user">root@parul</span><span class="prompt-sym">:</span><span class="prompt-path">~/OS_Guide</span><span class="prompt-sym">$</span>
+          <input id="termInput" type="text" placeholder="type 'help' and press enter…" autocomplete="off">
+        </div>
+        <div id="termOutput"></div>
+
+        <footer class="pageend">— end of ch1_intro.sh · Parul University · www.paruluniversity.ac.in —</footer>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  /* ---------------- boot log background ---------------- */
+  (function(){
+    const lines = [
+      "[ 0.000000] Booting Linux on physical CPU 0x0",
+      "[ 0.000000] Linux version 6.2.0-os-guide (root@parul-university)",
+      "[ 0.001021] CPU: ARMv8 Processor [410fd034] revision 4",
+      "[ 0.002233] Machine model: OS_Guide Virtual Platform",
+      "[ 0.010344] Memory: 8123456K/8388608K available",
+      "[ 0.021455] percpu: Embedded 22 pages/cpu",
+      "[ 0.033201] pid_max: default: 32768 minimum: 301",
+      "[ 0.045122] Mount-cache hash table entries: 4096",
+      "[ 0.055233] mc: Trying to unregister non-existent device",
+      "[ 0.066344] devtmpfs: initialized",
+      "[ 0.077233] clocksource: jiffies: mask 0xffffffff",
+      "[ 0.089123] NET: Registered protocol family 16",
+      "[ 0.100234] cpuidle: using governor menu",
+      "[ 0.112332] kernel_module: process_management loaded",
+      "[ 0.124433] kernel_module: memory_management loaded",
+      "[ 0.136544] kernel_module: file_system_manager loaded",
+      "[ 0.148655] scheduler: multiprogramming batch active",
+      "[ 0.160766] scheduler: round-robin time-slice = 10ms",
+      "[ 0.172877] syscall table initialized: fork,exec,exit,read,write",
+      "[ 0.184988] vfs: mounted root (ext4 filesystem)",
+      "[ 0.197099] init: booting user-space services",
+      "[ 0.209000] systemd[1]: Starting OS_Guide.target",
+      "[ 0.221000] OK  Started Process Management Service",
+      "[ 0.233000] OK  Started Memory Management Service",
+      "[ 0.245000] OK  Started I/O Subsystem Service",
+      "[ 0.257000] OK  Started Protection & Security Service",
+      "[ 0.269000] Reached target Multi-User System.",
+      "[ 0.281000] parul-university login: root",
+    ];
+    const container = document.getElementById('bootlog');
+    for(let c=0;c<3;c++){
+      const col = document.createElement('div');
+      col.className='col';
+      col.style.left = (c*34)+'%';
+      col.style.animationDuration = (28 + c*9)+'s';
+      let txt='';
+      for(let i=0;i<3;i++){ txt += lines.join('\n')+'\n\n'; }
+      col.textContent = txt;
+      container.appendChild(col);
+    }
+  })();
+
+  /* ---------------- accordion ---------------- */
+  function toggleGroup(id){
+    const g = document.getElementById(id);
+    if(!g) return;
+    const content = g.querySelector('.group-content');
+    if(g.classList.contains('open')){
+      g.classList.remove('open');
+      content.style.maxHeight = null;
+    } else {
+      g.classList.add('open');
+      content.style.maxHeight = content.scrollHeight + 'px';
+    }
+  }
+  // expose globally since re-render replaces DOM
+  window.toggleGroup = toggleGroup;
+
+  function openAllForMeasure(){
+    document.querySelectorAll('.group.open .group-content').forEach(c=>{
+      c.style.maxHeight = c.scrollHeight + 'px';
+    });
+  }
+  window.addEventListener('load', openAllForMeasure);
+  window.addEventListener('resize', openAllForMeasure);
+
+  /* subnav jump + open target group */
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('.subnav a');
+    if(!a) return;
+    e.preventDefault();
+    const id = a.getAttribute('data-target');
+    const g = document.getElementById(id);
+    if(g && !g.classList.contains('open')) toggleGroup(id);
+    setTimeout(()=>{ g && g.scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
+    document.querySelectorAll('.subnav a').forEach(x=>x.classList.remove('seen'));
+    a.classList.add('seen');
+    if(window.innerWidth <= 920) document.getElementById('sidebar').classList.remove('open');
+  });
+
+  /* ---------------- module stepper ---------------- */
+  const groupIds = ['g1','g2','g3','g4','g5','g6','g7','g8','g9','g10'];
+  let currentModule = 0;
+
+  function goToModule(idx){
+    if(idx < 0) idx = 0;
+    if(idx > groupIds.length-1) idx = groupIds.length-1;
+    currentModule = idx;
+    const id = groupIds[idx];
+    const g = document.getElementById(id);
+    if(g && !g.classList.contains('open')) toggleGroup(id);
+    g && g.scrollIntoView({behavior:'smooth', block:'start'});
+    const info = document.getElementById('stepInfo');
+    if(info) info.textContent = `module ${idx+1} / ${groupIds.length}`;
+    updateProgress();
+  }
+  function nextModule(){ goToModule(currentModule+1); }
+  function prevModule(){ goToModule(currentModule-1); }
+  window.nextModule = nextModule;
+  window.prevModule = prevModule;
+
+  function updateProgress(){
+    const bar = document.getElementById('progressBar');
+    if(bar) bar.style.width = Math.round(((currentModule+1)/groupIds.length)*100)+'%';
+  }
+  updateProgress();
+
+  /* ---------------- terminal prompt ---------------- */
+  function bindTerminal(){
+    const input = document.getElementById('termInput');
+    const output = document.getElementById('termOutput');
+    if(!input) return;
+    input.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter') return;
+      const cmd = input.value.trim();
+      input.value = '';
+      if(cmd === '') return;
+      const lower = cmd.toLowerCase();
+      let resp = '';
+
+      // ---- cross-file navigation aliases ----
+      const unitMatch = lower.match(/^(?:cd\s+unit|goto\s+)(\d)$/) || lower.match(/^cd unit(\d)\.html$/);
+      if(lower === 'next' || lower === 'cd unit2'){
+        resp = 'jumping to unit2.html…';
+        output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+        setTimeout(()=>{ window.location.href = 'unit2.html'; }, 250);
+        return;
+      } else if(unitMatch){
+        const n = parseInt(unitMatch[1],10);
+        if(n>=1 && n<=6){
+          resp = `jumping to unit${n}.html…`;
+          output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+          setTimeout(()=>{ window.location.href = `unit${n}.html`; }, 250);
+          return;
+        }
+      }
+
+      if(lower === 'help'){
+        resp = "available commands:\n  help          show this message\n  clear         clear terminal output\n  ls            list unit files\n  whoami        display current user\n  progress      show reading progress\n  section <n>   jump to section n (1-10) within this page\n  next          go to unit2.html\n  cd unit<n>    go to unit<n>.html (1-6)\n  goto <n>      go to unit<n>.html (1-6)";
+      } else if(lower === 'clear'){
+        output.textContent = '';
+        return;
+      } else if(lower === 'ls'){
+        resp = "unit1.html(active)  unit2.html  unit3.html  unit4.html  unit5.html  unit6.html";
+      } else if(lower === 'whoami'){
+        resp = "cse_student @ parul-institute-of-technology";
+      } else if(lower === 'progress'){
+        resp = `module ${currentModule+1} of ${groupIds.length} viewed`;
+      } else if(lower.startsWith('section')){
+        const n = parseInt(lower.split(' ')[1],10);
+        if(!isNaN(n) && n>=1 && n<=groupIds.length){
+          goToModule(n-1);
+          resp = `jumping to section ${n}…`;
+        } else {
+          resp = `usage: section <1-${groupIds.length}>`;
+        }
+      } else {
+        resp = `bash: ${cmd}: command not found. type 'help' for options.`;
+      }
+      output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+    });
+  }
+  bindTerminal();
+
+  /* ---------------- mobile menu ---------------- */
+  const menuToggle = document.getElementById('menuToggle');
+  if(menuToggle){
+    menuToggle.addEventListener('click', ()=>{
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  }
+</script>
+</body>
+</html>
