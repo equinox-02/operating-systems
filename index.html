@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OS_Guide :: ch1_intro.sh</title>
+<title>OS_Guide :: index.html</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -21,7 +21,7 @@
     --sans:'Inter', -apple-system, sans-serif;
 
     /* Chapter pipeline colors */
-    --ch1:#ff2b4d;   /* crimson red */
+    --ch1:#e8384f;   /* crimson red */
     --ch2:#39ff88;   /* cyberpunk green */
     --ch3:#2fb5ff;   /* neon blue */
     --ch4:#ffc736;   /* radiant gold */
@@ -29,9 +29,9 @@
     --ch6:#c9d3e0;   /* metallic silver */
 
     --accent: var(--ch1);
-    --accent-rgb: 255,43,77;
-    --accent-glow: rgba(255,43,77,.35);
-    --accent-dim: rgba(255,43,77,.12);
+    --accent-rgb: 232,56,79;
+    --accent-glow: rgba(232,56,79,.35);
+    --accent-dim: rgba(232,56,79,.12);
   }
 
   *{box-sizing:border-box;}
@@ -468,11 +468,138 @@
     text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-faint);
     margin-top:26px;
   }
+
+  /* ================= WELCOME HERO ================= */
+  #welcome{
+    position:relative;
+    padding:56px 30px 40px;
+    max-width:1180px;
+    width:100%;
+    margin:0 auto;
+    scroll-margin-top:10px;
+  }
+  .welcome-inner{
+    background:radial-gradient(120% 140% at 15% 0%, rgba(var(--accent-rgb),.14), transparent 55%),
+               linear-gradient(180deg,#0d0f16,#0a0b11);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:48px 40px 36px;
+    text-align:center;
+    box-shadow:0 30px 70px -40px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.02) inset;
+    overflow:hidden;
+    position:relative;
+  }
+  .welcome-inner::before{
+    content:'';position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(var(--accent-rgb),.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--accent-rgb),.05) 1px, transparent 1px);
+    background-size:36px 36px;
+    mask-image:radial-gradient(circle at 50% 0%, black, transparent 70%);
+    opacity:.6;
+  }
+  .w-badge{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;
+    color:var(--accent);background:var(--accent-dim);
+    border:1px solid rgba(var(--accent-rgb),.35);
+    padding:7px 16px;border-radius:999px;
+    margin-bottom:22px;position:relative;z-index:1;
+  }
+  .w-title{
+    position:relative;z-index:1;
+    font-family:var(--sans);font-weight:900;
+    font-size:clamp(26px,4.2vw,46px);
+    line-height:1.12;letter-spacing:-.02em;
+    margin:0 0 18px;color:var(--text);
+  }
+  .w-title .grad{
+    background:linear-gradient(100deg, var(--accent) 0%, #ff8a6b 45%, var(--accent) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 46px var(--accent-glow);
+  }
+  .w-desc{
+    position:relative;z-index:1;
+    max-width:660px;margin:0 auto 34px;
+    color:var(--text-dim);font-size:15px;line-height:1.75;
+  }
+  .w-desc b{color:var(--text);}
+  .w-features{
+    position:relative;z-index:1;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+    text-align:left;margin-bottom:8px;
+  }
+  @media (max-width:760px){.w-features{grid-template-columns:1fr;}}
+  .w-fcard{
+    background:var(--panel-3);border:1px solid var(--border-soft);
+    border-radius:12px;padding:20px 18px;
+    transition:transform .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .w-fcard:hover{
+    transform:translateY(-3px);
+    border-color:rgba(var(--accent-rgb),.4);
+    background:var(--panel-2);
+  }
+  .w-fcard .ficon{font-size:24px;margin-bottom:12px;display:block;}
+  .w-fcard h3{
+    font-size:14px;margin:0 0 8px;color:var(--text);font-weight:800;
+    letter-spacing:-.01em;
+  }
+  .w-fcard p{
+    margin:0;font-size:12.5px;line-height:1.6;color:var(--text-dim);
+  }
+  .scroll-cue{
+    position:relative;z-index:1;
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    margin-top:38px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);
+    cursor:pointer;user-select:none;
+  }
+  .scroll-cue:hover{color:var(--accent);}
+  .scroll-cue .chevbounce{
+    font-size:16px;color:var(--accent);
+    animation:bounceDown 1.6s ease-in-out infinite;
+  }
+  @keyframes bounceDown{
+    0%,100%{transform:translateY(0);opacity:.55;}
+    50%{transform:translateY(7px);opacity:1;}
+  }
 </style>
 </head>
 <body data-chapter="1">
 
 <div id="bootlog"></div>
+
+<section id="welcome">
+  <div class="welcome-inner">
+    <div class="w-badge">⚡ Welcome to OS Command Center</div>
+    <h1 class="w-title">Master <span class="grad">Operating Systems</span> Interactively</h1>
+    <p class="w-desc">This interactive suite walks you through the <b>entire Operating Systems curriculum</b> — every unit, rendered as a Linux-flavoured terminal you can actually drive. Navigate chapters with real shell commands, read <b>verbatim lecture-slide content</b> preserved word-for-word for exam prep, and move through visual modules built for fast recall, right down to system calls, kernel structures and beyond.</p>
+
+    <div class="w-features">
+      <div class="w-fcard">
+        <span class="ficon">🖥️</span>
+        <h3>Interactive Terminal Console</h3>
+        <p>Type real commands like <code style="font-family:var(--mono);color:var(--accent);">next</code>, <code style="font-family:var(--mono);color:var(--accent);">cd unit2</code> or <code style="font-family:var(--mono);color:var(--accent);">goto 3</code> to jump straight between chapters — no clicking required.</p>
+      </div>
+      <div class="w-fcard">
+        <span class="ficon">📊</span>
+        <h3>Verbatim Exam-Ready Notes</h3>
+        <p>Every bullet, table and definition is preserved exactly as taught — nothing paraphrased, nothing lost — so it lines up perfectly with your exam paper.</p>
+      </div>
+      <div class="w-fcard">
+        <span class="ficon">🚀</span>
+        <h3>Seamless Module Navigation</h3>
+        <p>A persistent sidebar file-tree and end-of-chapter stepper carry you cleanly from Unit 1 through Unit 6 without ever losing your place.</p>
+      </div>
+    </div>
+
+    <div class="scroll-cue" onclick="document.getElementById('main').scrollIntoView({behavior:'smooth'})">
+      <span>Scroll Down to Launch Chapter 1</span>
+      <span class="chevbounce">▼</span>
+    </div>
+  </div>
+</section>
 
 <div id="app">
 
@@ -486,9 +613,9 @@
     <nav class="filetree">
       <div class="path-root">~/root/OS_Guide/</div>
 
-      <a class="chapter-item active" href="unit1.html" data-chapter="1">
+      <a class="chapter-item active" href="index.html" data-chapter="1">
         <span class="ico">📂</span>
-        <span class="fname">unit1.html</span>
+        <span class="fname">index.html</span>
         <small>active</small>
       </a>
       <div class="subnav" id="subnav-1">
@@ -1406,7 +1533,7 @@
         </div>
         <div id="termOutput"></div>
 
-        <footer class="pageend">— end of ch1_intro.sh · Parul University · www.paruluniversity.ac.in —</footer>
+        <footer class="pageend">— end of index.html (ch1_intro.sh) · Parul University · www.paruluniversity.ac.in —</footer>
 
       </div>
     </div>
@@ -1539,7 +1666,12 @@
 
       // ---- cross-file navigation aliases ----
       const unitMatch = lower.match(/^(?:cd\s+unit|goto\s+)(\d)$/) || lower.match(/^cd unit(\d)\.html$/);
-      if(lower === 'next' || lower === 'cd unit2'){
+      if(lower === 'home' || lower === 'cd index' || lower === 'cd ~' || lower === 'cd /'){
+        resp = 'returning to ~/OS_Guide/index.html …';
+        output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
+        document.getElementById('welcome').scrollIntoView({behavior:'smooth'});
+        return;
+      } else if(lower === 'next' || lower === 'cd unit2'){
         resp = 'jumping to unit2.html…';
         output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
         setTimeout(()=>{ window.location.href = 'unit2.html'; }, 250);
@@ -1555,12 +1687,12 @@
       }
 
       if(lower === 'help'){
-        resp = "available commands:\n  help          show this message\n  clear         clear terminal output\n  ls            list unit files\n  whoami        display current user\n  progress      show reading progress\n  section <n>   jump to section n (1-10) within this page\n  next          go to unit2.html\n  cd unit<n>    go to unit<n>.html (1-6)\n  goto <n>      go to unit<n>.html (1-6)";
+        resp = "available commands:\n  help          show this message\n  clear         clear terminal output\n  ls            list unit files\n  whoami        display current user\n  progress      show reading progress\n  section <n>   jump to section n (1-10) within this page\n  home          scroll back to welcome hero (#welcome)\n  cd index      scroll back to welcome hero (#welcome)\n  next          go to unit2.html\n  cd unit<n>    go to unit<n>.html (1-6)\n  goto <n>      go to unit<n>.html (1-6)";
       } else if(lower === 'clear'){
         output.textContent = '';
         return;
       } else if(lower === 'ls'){
-        resp = "unit1.html(active)  unit2.html  unit3.html  unit4.html  unit5.html  unit6.html";
+        resp = "index.html(active)  unit2.html  unit3.html  unit4.html  unit5.html  unit6.html";
       } else if(lower === 'whoami'){
         resp = "cse_student @ parul-institute-of-technology";
       } else if(lower === 'progress'){
