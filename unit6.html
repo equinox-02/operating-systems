@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>~/OS_Guide/ch6_io_systems.sh — Comprehensive Guide for Operating Systems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKEN SYSTEM
+   ============================================================ */
+:root{
+  --bg-deep:#08080c;
+  --bg-panel:#0d1117;
+  --bg-panel-2:#101622;
+  --bg-raised:#131a26;
+  --line:rgba(255,255,255,0.08);
+  --line-soft:rgba(255,255,255,0.05);
+  --text-hi:#e9edf3;
+  --text-mid:#9aa5b6;
+  --text-low:#5c6577;
+  --font-mono:'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --font-sans:'Inter', -apple-system, sans-serif;
+
+  /* chapter pipeline */
+  --ch1:#e8384f;   /* crimson red */
+  --ch2:#39ff8f;   /* cyberpunk green */
+  --ch3:#3aa0ff;   /* neon blue */
+  --ch4:#ffc93c;   /* radiant gold */
+  --ch5:#ff8a3d;   /* solar orange */
+  --ch6:#c9d3de;   /* metallic silver — ACTIVE */
+  --ch6-glow:#eef2f6;
+
+  --accent: var(--ch6);
+  --accent-glow: var(--ch6-glow);
+  --accent-dim: rgba(201,211,222,0.14);
+  --accent-line: rgba(201,211,222,0.35);
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg-deep);
+  color:var(--text-hi);
+  font-family:var(--font-sans);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--accent-dim); color:var(--text-hi); }
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
+::-webkit-scrollbar-thumb:hover{ background:var(--accent-dim); }
+
+a{ color:inherit; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ============================================================
+   AMBIENT BACKGROUND — kernel log scroll
+   ============================================================ */
+#bgLog{
+  position:fixed; inset:0; z-index:0;
+  font-family:var(--font-mono);
+  font-size:12px; line-height:1.7; color:var(--text-low);
+  opacity:0.16; white-space:pre; pointer-events:none;
+  padding:20px; overflow:hidden;
+  mask-image:radial-gradient(ellipse at 30% 20%, rgba(0,0,0,0.9), transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse at 30% 20%, rgba(0,0,0,0.9), transparent 75%);
+}
+#bgLog span{ display:block; }
+#bgLog span.hi{ color:var(--accent); opacity:0.7;}
+
+.grain{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background-image:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size:3px 3px; opacity:.5;
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app{
+  position:relative; z-index:2;
+  display:grid;
+  grid-template-columns:280px 1fr;
+  min-height:100vh;
+}
+@media (max-width:900px){
+  .app{ grid-template-columns:1fr; }
+  .sidebar{ position:fixed; left:0; top:0; bottom:0; z-index:50; transform:translateX(-100%); transition:transform .35s cubic-bezier(.7,0,.2,1); }
+  .sidebar.open{ transform:translateX(0); }
+  .menuBtn{ display:flex !important; }
+}
+
+/* ---------- SIDEBAR : terminal file explorer ---------- */
+.sidebar{
+  background:linear-gradient(180deg,#0a0d13,#080a0f);
+  border-right:1px solid var(--line);
+  display:flex; flex-direction:column;
+  width:280px;
+  height:100vh; position:sticky; top:0;
+}
+.sidebar-head{
+  padding:20px 18px 14px;
+  border-bottom:1px solid var(--line-soft);
+}
+.brand{
+  font-family:var(--font-mono); font-size:12.5px; color:var(--text-mid);
+  letter-spacing:.02em;
+}
+.brand .path-root{ color:var(--text-low); }
+.brand .path-active{ color:var(--accent); text-shadow:0 0 12px var(--accent-glow); }
+.brand-title{
+  margin-top:8px; font-family:var(--font-sans); font-weight:800; font-size:16.5px;
+  color:var(--text-hi); letter-spacing:-.01em;
+}
+.brand-sub{ margin-top:3px; font-size:11px; color:var(--text-low); font-family:var(--font-mono);}
+
+.tree{ flex:1; overflow-y:auto; padding:14px 10px 20px; }
+.chapter-node{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; margin-bottom:4px; border-radius:8px;
+  font-family:var(--font-mono); font-size:12.5px;
+  color:var(--text-low); cursor:pointer; position:relative;
+  border:1px solid transparent; text-decoration:none;
+}
+.chapter-node:hover{ background:rgba(255,255,255,0.04); }
+.subnav-link{
+  display:flex; align-items:baseline; gap:8px;
+  width:100%; text-align:left; background:none; border:none;
+  padding:6px 12px; border-radius:6px; cursor:pointer; text-decoration:none;
+  font-family:var(--font-mono); font-size:11px; color:var(--text-low);
+  transition:background .15s, color .15s;
+}
+.subnav-link:hover{ background:rgba(255,255,255,0.03); color:var(--accent-glow); }
+.subnav-link::before{ content:'#'; color:var(--accent); opacity:.7; margin-right:1px; }
+.subnav-link.current{ background:var(--accent-dim); color:var(--accent-glow); }
+.chapter-node .dot{
+  width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  box-shadow:0 0 0 3px transparent;
+}
+.chapter-node.done{ color:var(--text-mid); }
+.chapter-node.done .dot{ background:var(--c); box-shadow:0 0 8px var(--c); }
+.chapter-node.done .status{ margin-left:auto; font-size:9.5px; color:var(--c); opacity:.65; }
+.chapter-node.active{
+  color:var(--accent); background:var(--accent-dim);
+  border-color:var(--accent-line);
+  box-shadow:0 0 22px -6px var(--accent-glow) inset;
+}
+.chapter-node.active .dot{ background:var(--accent); box-shadow:0 0 10px var(--accent-glow); animation:pulse 2s ease-in-out infinite; }
+.chapter-node.active .status{ margin-left:auto; font-size:9.5px; letter-spacing:.06em; }
+@keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
+
+.section-nav{ margin-top:16px; padding-top:12px; border-top:1px solid var(--line-soft); }
+.section-nav-label{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--text-low);
+  padding:0 12px; margin-bottom:8px; text-transform:uppercase;
+}
+.section-item{
+  display:flex; align-items:baseline; gap:8px;
+  width:100%; text-align:left; background:none; border:none;
+  padding:7px 12px; border-radius:6px; cursor:pointer;
+  font-family:var(--font-mono); font-size:11.5px; color:var(--text-low);
+  transition:background .15s, color .15s;
+}
+.section-item .n{ color:var(--text-low); font-size:10px; flex-shrink:0; width:18px;}
+.section-item:hover{ background:rgba(255,255,255,0.03); color:var(--text-mid); }
+.section-item.current{ background:var(--accent-dim); color:var(--accent-glow); }
+.section-item.current .n{ color:var(--accent); }
+
+.sidebar-foot{
+  border-top:1px solid var(--line-soft); padding:12px 18px;
+  font-family:var(--font-mono); font-size:10.5px; color:var(--text-low);
+  display:flex; justify-content:space-between;
+}
+
+/* ---------- MAIN COLUMN ---------- */
+.main{ display:flex; flex-direction:column; min-height:100vh; }
+
+.topbar{
+  display:flex; align-items:center; gap:14px;
+  padding:16px 28px; border-bottom:1px solid var(--line-soft);
+  backdrop-filter:blur(6px);
+}
+.menuBtn{
+  display:none; width:34px; height:34px; border-radius:8px;
+  background:var(--bg-raised); border:1px solid var(--line); color:var(--text-hi);
+  align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+}
+.crumbs{ font-family:var(--font-mono); font-size:12px; color:var(--text-low); }
+.crumbs b{ color:var(--accent); font-weight:600; }
+.progress-wrap{ margin-left:auto; display:flex; align-items:center; gap:10px; }
+.progress-track{ width:140px; height:5px; border-radius:3px; background:var(--line); overflow:hidden; }
+.progress-fill{ height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-glow)); box-shadow:0 0 10px var(--accent-glow); transition:width .4s ease; }
+.progress-text{ font-family:var(--font-mono); font-size:11px; color:var(--text-mid); min-width:48px; text-align:right; }
+
+/* ---------- CONSOLE STAGE ---------- */
+.stage{ flex:1; padding:28px; display:flex; justify-content:center; }
+.console{
+  width:100%; max-width:980px;
+  background:linear-gradient(180deg,var(--bg-panel),var(--bg-panel-2));
+  border:1px solid var(--line);
+  border-radius:14px;
+  box-shadow:0 30px 80px -30px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02) inset, 0 0 60px -20px var(--accent-glow);
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  min-height:640px;
+}
+.console-bar{
+  display:flex; align-items:center; gap:14px;
+  padding:12px 18px; background:rgba(255,255,255,0.02);
+  border-bottom:1px solid var(--line-soft);
+}
+.dots{ display:flex; gap:8px; }
+.dots span{ width:11px; height:11px; border-radius:50%; display:inline-block; }
+.dots .r{ background:#ff5f57; }
+.dots .y{ background:#febc2e; }
+.dots .g{ background:#28c840; }
+.console-title{
+  font-family:var(--font-mono); font-size:12px; color:var(--text-mid);
+  flex:1; text-align:center; letter-spacing:.02em;
+}
+.console-flags{ font-family:var(--font-mono); font-size:10.5px; color:var(--text-low); display:flex; gap:8px;}
+.console-flags span{ padding:2px 7px; border:1px solid var(--line); border-radius:4px; }
+
+.console-body{ flex:1; display:flex; flex-direction:column; }
+
+/* tab strip for jumping across the 6 grouped units within ch6 */
+.tabstrip{
+  display:flex; gap:2px; overflow-x:auto; padding:10px 14px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.tab{
+  font-family:var(--font-mono); font-size:11px; white-space:nowrap;
+  color:var(--text-low); background:none; border:none;
+  padding:9px 14px; cursor:pointer; border-bottom:2px solid transparent;
+  transition:color .15s, border-color .15s;
+}
+.tab:hover{ color:var(--text-mid); }
+.tab.active{ color:var(--accent); border-color:var(--accent); }
+
+.slide-area{ flex:1; padding:30px 34px 20px; overflow-y:auto; }
+.slide{ display:none; animation:enter .4s cubic-bezier(.2,.8,.2,1); }
+.slide.show{ display:block; }
+@keyframes enter{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:translateY(0);} }
+
+.slide-eyebrow{
+  font-family:var(--font-mono); font-size:11px; color:var(--accent);
+  letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px;
+  display:flex; align-items:center; gap:8px;
+}
+.slide-eyebrow::before{ content:'$'; opacity:.6; }
+.slide h2{
+  font-size:26px; font-weight:800; letter-spacing:-.02em; margin-bottom:18px;
+  color:var(--text-hi);
+  text-shadow:0 0 30px var(--accent-glow);
+}
+.slide-content{ font-size:15px; line-height:1.85; color:var(--text-mid); }
+.slide-content p{ margin-bottom:12px; }
+.slide-content ul, .slide-content ol{ margin:6px 0 14px 0; padding-left:0; list-style:none; }
+.slide-content li{
+  position:relative; padding:7px 0 7px 26px; border-bottom:1px dashed var(--line-soft);
+}
+.slide-content li:last-child{ border-bottom:none; }
+.slide-content li::before{
+  content:'›'; position:absolute; left:2px; top:6px; color:var(--accent); font-weight:700;
+}
+.slide-content ol{ counter-reset:step; }
+.slide-content ol li::before{
+  counter-increment:step; content:counter(step); font-family:var(--font-mono); font-size:10px;
+  color:var(--accent); border:1px solid var(--accent-line); border-radius:4px;
+  width:16px; height:16px; display:flex; align-items:center; justify-content:center; top:5px;
+}
+.slide-content b, .slide-content strong{ color:var(--text-hi); font-weight:700; }
+.kv-list li{ padding-left:0; }
+.kv-list b{ display:inline-block; min-width:150px; color:var(--accent-glow); }
+
+.index-table{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:13px; }
+.index-table td{ padding:9px 6px; border-bottom:1px dashed var(--line-soft); color:var(--text-mid); }
+.index-table td:last-child{ text-align:right; color:var(--accent); width:70px; }
+.index-table tr:hover td{ color:var(--text-hi); }
+
+.callout{
+  margin-top:16px; padding:14px 16px; border-radius:8px;
+  background:rgba(255,255,255,0.02); border:1px solid var(--line);
+  border-left:3px solid var(--accent); font-size:13.5px; color:var(--text-mid);
+  font-family:var(--font-mono);
+}
+.tag{
+  display:inline-block; font-family:var(--font-mono); font-size:10px;
+  border:1px solid var(--accent-line); color:var(--accent); border-radius:20px;
+  padding:2px 10px; margin:2px 6px 8px 0;
+}
+.diagram-note{
+  margin-top:14px; padding:12px 14px; border-radius:8px; border:1px dashed var(--line);
+  font-family:var(--font-mono); font-size:12px; color:var(--text-low);
+  display:flex; gap:10px; align-items:flex-start;
+}
+
+/* refs */
+.ref-list{ list-style:none; }
+.ref-list li{ border-bottom:1px dashed var(--line-soft); padding:9px 0; }
+.ref-list b{ color:var(--accent); }
+.ref-list a{ color:var(--text-mid); word-break:break-all; text-decoration:underline; text-decoration-color:var(--line); }
+.ref-list a:hover{ color:var(--accent); }
+
+/* footer controls */
+.console-foot{
+  border-top:1px solid var(--line-soft);
+  padding:14px 18px; display:flex; align-items:center; gap:12px;
+  background:rgba(0,0,0,0.15);
+}
+.btn{
+  font-family:var(--font-mono); font-size:12px; font-weight:600;
+  padding:9px 16px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--line); background:var(--bg-raised); color:var(--text-mid);
+  display:flex; align-items:center; gap:8px; transition:all .15s;
+}
+.btn:hover{ border-color:var(--accent-line); color:var(--text-hi); }
+.btn.primary{
+  background:linear-gradient(180deg, rgba(201,211,222,0.16), rgba(201,211,222,0.06));
+  border-color:var(--accent-line); color:var(--accent-glow);
+  box-shadow:0 0 20px -8px var(--accent-glow);
+}
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+.btn:disabled:hover{ border-color:var(--line); color:var(--text-mid); }
+.slide-counter{ font-family:var(--font-mono); font-size:11px; color:var(--text-low); margin-left:auto; }
+
+/* terminal prompt input */
+.prompt-line{
+  border-top:1px solid var(--line);
+  background:#060709;
+  padding:12px 18px; font-family:var(--font-mono); font-size:12.5px;
+  display:flex; align-items:center; gap:8px; color:var(--text-mid);
+}
+.prompt-user{ color:var(--accent); flex-shrink:0; }
+.prompt-line input{
+  flex:1; background:none; border:none; outline:none; color:var(--text-hi);
+  font-family:var(--font-mono); font-size:12.5px; caret-color:var(--accent);
+}
+.prompt-line input::placeholder{ color:var(--text-low); }
+.prompt-output{
+  font-family:var(--font-mono); font-size:11.5px; color:var(--text-low);
+  padding:0 18px 10px; background:#060709; white-space:pre-wrap; max-height:110px; overflow-y:auto;
+}
+.prompt-output .ln{ padding:2px 0; }
+.prompt-output .ok{ color:var(--accent); }
+.prompt-output .err{ color:var(--ch1); }
+
+footer.pagefoot{
+  text-align:center; padding:16px; font-family:var(--font-mono); font-size:10.5px; color:var(--text-low);
+}
+
+/* ---------- END-OF-CHAPTER ACTION STEPPER ---------- */
+.chapter-stepper{
+  max-width:980px; margin:0 auto; width:100%;
+  display:flex; justify-content:space-between; gap:14px;
+  padding:0 28px 8px;
+}
+.stepper-btn{
+  font-family:var(--font-mono); font-size:12.5px; font-weight:600;
+  padding:14px 20px; border-radius:10px; text-decoration:none;
+  border:1px solid var(--line); background:var(--bg-raised); color:var(--text-mid);
+  display:flex; align-items:center; gap:8px; transition:all .15s;
+  flex:1;
+}
+.stepper-btn.prev{ justify-content:flex-start; }
+.stepper-btn.next{ justify-content:flex-end; }
+.stepper-btn:hover{ border-color:var(--accent-line); color:var(--text-hi); transform:translateY(-1px); }
+.stepper-btn.reboot{
+  background:linear-gradient(180deg, rgba(201,211,222,0.16), rgba(201,211,222,0.06));
+  border-color:var(--accent-line); color:var(--accent-glow);
+  box-shadow:0 0 20px -8px var(--accent-glow);
+}
+@media (max-width:600px){
+  .chapter-stepper{ flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<pre id="bgLog"></pre>
+<div class="grain"></div>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand"><span class="path-root">/root/OS_Guide/</span><span class="path-active">ch6_io_systems.sh</span></div>
+      <div class="brand-title">Comprehensive Guide<br>for Operating Systems</div>
+      <div class="brand-sub">Parul University · CSE · Sem 3</div>
+    </div>
+
+    <nav class="tree" id="tree">
+      <a href="unit1.html" class="chapter-node done" style="--c:var(--ch1)"><span class="dot"></span>ch1_processes.sh<span class="status">DONE</span></a>
+      <a href="unit2.html" class="chapter-node done" style="--c:var(--ch2)"><span class="dot"></span>ch2_scheduling.sh<span class="status">DONE</span></a>
+      <a href="unit3.html" class="chapter-node done" style="--c:var(--ch3)"><span class="dot"></span>ch3_sync.sh<span class="status">DONE</span></a>
+      <a href="unit4.html" class="chapter-node done" style="--c:var(--ch4)"><span class="dot"></span>ch4_deadlocks.sh<span class="status">DONE</span></a>
+      <a href="unit5.html" class="chapter-node done" style="--c:var(--ch5)"><span class="dot"></span>ch5_memory.sh<span class="status">DONE</span></a>
+      <a href="unit6.html" class="chapter-node active"><span class="dot"></span>ch6_io_systems.sh<span class="status">ACTIVE</span></a>
+
+      <div class="section-nav">
+        <div class="section-nav-label">// unit6.html — inner topics</div>
+        <div id="subnavList"></div>
+      </div>
+
+      <div class="section-nav">
+        <div class="section-nav-label">// jump to slide</div>
+        <div id="sectionList"></div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <span>chmod 6.1</span>
+      <span id="footProgress">0 / 0</span>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="topbar">
+      <button class="menuBtn" id="menuBtn" aria-label="Toggle navigation">☰</button>
+      <div class="crumbs">root@parul-university:~$ <b>cat ch6_io_systems.sh</b></div>
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+        <div class="progress-text" id="progText">0%</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="console">
+        <div class="console-bar">
+          <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="console-title">chapter-6.1 — i/o systems — prof. ashish dubey</div>
+          <div class="console-flags"><span>utf-8</span><span>bash</span></div>
+        </div>
+
+        <div class="console-body">
+          <div class="tabstrip" id="tabstrip"></div>
+          <div class="slide-area" id="slideArea"></div>
+
+          <div class="console-foot">
+            <button class="btn" id="prevBtn">‹ Prev Terminal Line</button>
+            <button class="btn primary" id="nextBtn">Execute Module ›</button>
+            <div class="slide-counter" id="slideCounter">01 / 01</div>
+          </div>
+
+          <div class="prompt-output" id="promptOutput"></div>
+          <div class="prompt-line">
+            <span class="prompt-user">root@parul-university</span>:~$
+            <input id="promptInput" type="text" placeholder="type 'help' · try 'next', 'prev', 'reboot', 'goto 1'…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapter-stepper">
+      <a href="unit5.html" class="stepper-btn prev">← PREVIOUS MODULE: unit5.html</a>
+      <a href="unit1.html" class="stepper-btn reboot next">REBOOT TO CORE MODULE: unit1.html 🔄</a>
+    </div>
+
+    <footer class="pagefoot">Prof. Ashish Dubey · Assistant Professor · CSE · Parul University, Vadodara, Gujarat — NAAC Grade A++</footer>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   CONTENT — verbatim from Chapter-6.1 I/O Systems
+   ============================================================ */
+const slides = [
+{
+  eyebrow:"boot sequence",
+  title:"CHAPTER-6.1 — I/O SYSTEMS",
+  html:`<p>Prof.Ashish Dubey</p><p>Assistant Professor</p><p>CSE</p>
+        <div class="callout">Parul University · Vadodara, Gujarat · NAAC Grade A++ · Information and Communication Technology</div>`
+},
+{
+  eyebrow:"index",
+  title:"I/O DEVICE — Index",
+  html:`<table class="index-table"><tbody>
+    <tr><td>I/O devices…………….</td><td>3</td></tr>
+    <tr><td>Device controllers…………………</td><td>4-6</td></tr>
+    <tr><td>Memmory map</td><td>7-9</td></tr>
+    <tr><td>Direct memory access Principles of I/O Software:</td><td>10-16</td></tr>
+    <tr><td>SHARED VS DEDICATED DEVICE</td><td>17-25</td></tr>
+    <tr><td>Goals of Interrupt</td><td>25</td></tr>
+    <tr><td>Handlers</td><td>26-27</td></tr>
+    <tr><td>Device drivers,</td><td>28-32</td></tr>
+    <tr><td>Device independent I/O software.</td><td>—</td></tr>
+  </tbody></table>`
+},
+{
+  eyebrow:"i/o device",
+  title:"I/O Device are of two Types",
+  html:`<ol>
+    <li><b>Block Device :</b> A block device is one with which the driver communicates by sending entire blocks of data. For example, Hard disks, USB cameras, Disk-On-Key etc.</li>
+    <li><b>Character Device :</b> A character device is one with which the driver communicates by sending and receiving single characters (bytes, octets). For example, serial ports, parallel ports, sounds cards etc</li>
+  </ol>`
+},
+{
+  eyebrow:"device controller",
+  title:"DEVICE CONTROLLER",
+  html:`<ul>
+    <li><b>Device controller</b> is a collection of electronics that can operate a port, a bus, or a device. A serial-port controller is an example of a simple device controller.</li>
+    <li>Interaction with a device controller is managed through a device driver.</li>
+  </ul>`
+},
+{
+  eyebrow:"device controller",
+  title:"DEVICE CONTROLLER",
+  html:`<ul>
+    <li>It is a single chip in the computer that controls the signals on the wires of a serial port.</li>
+    <li>Any device connected to the computer is connected by a plug and socket, and the socket is connected to a device controller</li>
+    <li>Each device controller has a local buffer and a command register.</li>
+    <li>It communicates with the CPU by interrupts. A device's controller plays an important role in the operation of that device.</li>
+    <li>It functions as a bridge between the device and the operating system.</li>
+  </ul>`
+},
+{
+  eyebrow:"examples",
+  title:"EXAMPLES OF DEVICE CONTROLLER",
+  html:`<span class="tag">Network card</span><span class="tag">Disk controller</span><span class="tag">DVD-ROM controller</span><span class="tag">USB</span><span class="tag">Serial port</span><span class="tag">Sound card</span>`
+},
+{
+  eyebrow:"memory mapped i/o",
+  title:"MEMORY MAPPED I/O",
+  html:`<ul>
+    <li>It is the communication method among CPU, Memory and I/O</li>
+    <li>This configuration uses same bus and same control signals but unique address space between memory and I/O.</li>
+    <li>Same address space is shared by memory and I/O devices. But some addresses represent memory cells, while others represents registers in I/O devices</li>
+    <li>In this mechanism, whenever the CPU generates the memory request. Even the control signals are matching but address space is not matching therefore only one node can perform the operation</li>
+  </ul>`
+},
+{
+  eyebrow:"memory mapped i/o",
+  title:"MEMORY MAPPED I/O — Diagram",
+  html:`<ul>
+    <li>Same address space is shared by memory and I/O devices. But some addresses represent memory cells, while others represents registers in I/O devices</li>
+    <li>In this mechanism, whenever the CPU generates the memory request. Even the control signals are matching but address space is not matching therefore only one node can perform the operation.</li>
+  </ul>
+  <div class="diagram-note">◈ diagram: CPU ⇄ I/O Commands ⇄ I/O Device · CPU ⇄ Data ⇄ Memory ⇄ Data ⇄ I/O Device</div>`
+},
+{
+  eyebrow:"i/o device",
+  title:"Memory Mapped I/O — Adv / Disadv",
+  html:`<ul class="kv-list">
+    <li><b>Advantages of memory mapped I/O:</b></li>
+    <li>It makes programming simpler</li>
+    <li>It does not have special commands to access I/O devices</li>
+    <li><b>Disdvantages of memory mapped I/O:</b></li>
+    <li>Memory utilization is poor</li>
+    <li>It is suitable only when the processor consist the limited numbers of I/O ports.</li>
+  </ul>`
+},
+{
+  eyebrow:"dma",
+  title:"DMA (DIRECT MEMORY ACCESS)",
+  html:`<ul>
+    <li>A special unit may be provided to allow transfer of block of data directly between external device and the main memory, without continuous intervention by the processor. This approach is called Direct Memory Access (DMA)</li>
+    <li>This means that once reading and writing has begun, the remainder of the data can be transferred to and from memory without processor (CPU) intervention</li>
+  </ul>`
+},
+{
+  eyebrow:"dma",
+  title:"DIRECT MEMORY ACCESS",
+  html:`<ul>
+    <li>DMA is particularly useful on devices like disks, where many bytes of information can be transferred in single I/O operations</li>
+    <li>When used in conjunction with an interrupt, CPU is notified only after the entire block of data has been transferred</li>
+    <li>Direct Memory Access is an I/O technique that allows a control unit to directly access main memory.</li>
+    <li>Without DMA, the processor is responsible for the physical movement of data between main memory and device.</li>
+  </ul>`
+},
+{
+  eyebrow:"dma",
+  title:"WORKING OF DIRECT MEMORY ACCESS",
+  html:`<ol>
+    <li>During execution of first part of the user program, the CPU initializes the DMA with control signals, IO address, Memory starting address and the count value</li>
+    <li>Then the CPU is busy with execution of the part1(user program part1). Simultaneously the DMA initializes the operation to the corresponding IO device by sending the DMA request signal</li>
+    <li>After Preparing the data, the I/O device sends the DMA ACK signal to the DMA</li>
+  </ol>`
+},
+{
+  eyebrow:"dma",
+  title:"WORKING OF DIRECT MEMORY ACCESS",
+  html:`<ol>
+    <li>Whenever the DMA module receives the ACK signal from the IO, it enables the HOLD signal for the purpose of gain the control of the bus and it is waiting for the HOLD ACK signal.</li>
+    <li>When the processor receives the HOLD signal it enables the HOLD ACK (HLDA) signal.</li>
+    <li>Whenever DMA receives HLDA signal, it transfer the data from the IO device to memory until the count becomes zero</li>
+    <li>Until transfer the data, the CPU is in the blocked state. After completion of data transfer operation, the DMA reestablish the bus connection to the CPU.</li>
+  </ol>`
+},
+{
+  eyebrow:"dma",
+  title:"MODES OF DIRECT MEMORY ACCESS",
+  html:`<ul>
+    <li>Burst mode</li>
+    <li>Cycle stealing mode</li>
+    <li>Blocked mode</li>
+  </ul>`
+},
+{
+  eyebrow:"dma",
+  title:"MODES OF DIRECT MEMORY ACCESS",
+  html:`<ul>
+    <li><b>Burst mode:</b> In the burst mode of DMA, it transfer a bulk amount of data from the IO to M/Y, after receiving the HLDA signal.</li>
+    <li><b>Cycle stealing mode:</b> The DMA forcefully suspends the CPU operation and take the control of bus that means without receiving the hold acknowledgement(HLDA) signal, the DMA gains the control of bus. In this mode, DMA transfers the very important data to the memory and reestablish the connection to the CPU.</li>
+    <li><b>Blocked mode :</b> DMA transfers the data in the form of blocks.</li>
+  </ul>`
+},
+{
+  eyebrow:"dma",
+  title:"DMA — Adv / Disadv",
+  html:`<ul class="kv-list">
+    <li><b>Advantages of DMA:</b></li>
+    <li>High transfer rates</li>
+    <li>Fewer CPU cycles for each transfer</li>
+    <li><b>Disdvantages of DMA:</b></li>
+    <li>Expensive system</li>
+    <li>Synchronization mechanism must be provided in order to avoid accessing non-updated information from RAM</li>
+  </ul>`
+},
+{
+  eyebrow:"polling vs interrupt",
+  title:"POLLING VS INTERRUPT",
+  html:`<ul>
+    <li>A computer must have a way of detecting the arrival of any type of input.</li>
+    <li>There are two ways that this can happen, known as <b>polling</b> and <b>interrupts.</b></li>
+    <li><b>Polling I/O :</b> The process of periodically checking status of the device to see if it is time for the next I/O operation, is called polling.</li>
+    <li>The I/O device simply puts the information in a Status register, and the processor must come and get the information.</li>
+  </ul>`
+},
+{
+  eyebrow:"polling vs interrupt",
+  title:"POLLING VS INTERRUPT",
+  html:`<ul>
+    <li><b>Interrupt I/O :</b>An alternative scheme for dealing with I/O is the interrupt-driven method.</li>
+    <li>An interrupt is a signal to the microprocessor from a device that requires attention.</li>
+    <li>A device controller puts an interrupt signal on the bus when it needs CPU's attention when CPU receives an interrupt, It saves its current state and invokes the appropriate interrupt handler using the interrupt vector (addresses of OS routines to handle various events).</li>
+    <li>When the interrupting device has been dealt with, the CPU continues with its original task as if it had never been interrupted.</li>
+  </ul>`
+},
+{
+  eyebrow:"shared vs dedicated device",
+  title:"SHARED VS DEDICATED DEVICE",
+  html:`<ul>
+    <li><b>Dedicated device:</b> are those device, which can be shared by only one user at a time for ex. Printer and CD-ROM drives.</li>
+    <li><b>Shared Devices</b>: Shared devices are those devices which can be shared by concurrent processes without any deadlock. For ex- Disks, Ethernet port</li>
+  </ul>`
+},
+{
+  eyebrow:"principle of i/o software",
+  title:"PRINCIPLE OF I/O SOFTWARE",
+  html:`<p><b>GOALS OF I/O SOFTWARE:</b></p>
+  <ul>
+    <li><b>Device Independence:</b> Device independence enables I/O devices to be treated in a standard, uniform way. For instance, how an application can open a file on a disk without knowing what kind of disk it is, and how new disks and other devices can be added to a computer without the operating system being disrupted.</li>
+    <li><b>Error Handling:</b> An operating system that uses protected memory can guard against many kinds of hardware and application errors. There are several aspects to error handling including: Detection, correction and reporting</li>
+  </ul>`
+},
+{
+  eyebrow:"principle of i/o software",
+  title:"PRINCIPLE OF I/O SOFTWARE",
+  html:`<p><b>GOALS OF I/O SOFTWARE:</b></p>
+  <ul>
+    <li><b>Buffering:</b> A buffer is a memory area that stores data while they are transferred between two devices or between a device and an application.</li>
+  </ul>
+  <p>Buffering is done for the following reasons :</p>
+  <ul>
+    <li>One reason is to cope with a speed mismatch between the</li>
+    <li>producer and consumer of a data stream.</li>
+  </ul>`
+},
+{
+  eyebrow:"i/o device",
+  title:"Interrupt",
+  html:`<p><b>Interrupt:</b> Interrupt is unusual event of disturb.</p>
+  <ul>
+    <li>The CPU hardware has a wire called the interrupt request line that the CPU senses after executing every instruction.</li>
+    <li>The CPU responds to the interrupt only after completion of the current instruction execution</li>
+  </ul>`
+},
+{
+  eyebrow:"i/o device",
+  title:"Interrupt Handler",
+  html:`<p><b>Interrupt Handler:</b></p>
+  <ul>
+    <li>The interrupt handler determines the cause of the interrupt and performs the necessary processing, then executes a return from interrupt instruction to return the CPU to the execution state prior to the interrupt.</li>
+    <li>We say that the device controller raises an interrupt by asserting a signal on the interrupt request line, then, CPU catches the interrupt and dispatches to the interrupt handler, and the handler clears the interrupt by servicing the device.</li>
+  </ul>`
+},
+{
+  eyebrow:"i/o device",
+  title:"Instruction cycle with interrupt",
+  html:`<p>Instruction cycle with interrupt consist of three sub cycles:</p>
+  <ol>
+    <li>Fetch cycle</li>
+    <li>Execution cycle</li>
+    <li>Interrupt cycle</li>
+  </ol>`
+},
+{
+  eyebrow:"i/o device",
+  title:"Interrupt flag/pin",
+  html:`<p><b>Interrupt flag/pin:</b></p>
+  <ul>
+    <li>In the processor environment, interrupt flag is present to enable or disable the interrupt. When the INTR (interrupt) flag is in enable state, there is a need of interrupt cycle to service the interrupt</li>
+    <li>Otherwise, after completion of current instruction, the CPU fetch the next current instruction from the memory based on the program counter. In the processor, INTR pin is used. It holds the status of interrupt</li>
+    <li>The CPU responds to the interrupt only after completion of the current instruction execution</li>
+  </ul>`
+},
+{
+  eyebrow:"interrupt handling",
+  title:"INTERRUPT HANDLING",
+  html:`<ul>
+    <li>Whenever, the CPU recognize any interrupt after completion of current instruction, it push the program counter value onto the stack then loads the program counter with vector address</li>
+    <li>Then the control is transferred to the interrupt subprogram. It continue the execution until "IRET" instruction</li>
+  </ul>`
+},
+{
+  eyebrow:"interrupt handling",
+  title:"INTERRUPT HANDLING — Diagram",
+  html:`<ul>
+    <li>Whenever "IRET" instruction is executed by the processor. It invokes the pop operation to restore the program counter with return address</li>
+    <li>Now the CPU is fetching the next instruction from the main memory</li>
+    <li>The entry point/address of interrupt subprogram is called vector address</li>
+  </ul>
+  <div class="diagram-note">◈ diagram flow: device driver initiates I/O → I/O controller initiates I/O → input ready / output complete / error generates interrupt signal → CPU receiving interrupt, transfers control to interrupt handler → interrupt handler processes data, returns from interrupt → CPU resumes processing of interrupted task</div>`
+},
+{
+  eyebrow:"device drivers",
+  title:"DEVICE DRIVERS",
+  html:`<ul>
+    <li>A device driver is a program that controls a particular type of device that is attached to user computer. There are device drivers for printers, displays, CD-ROM readers, hard disk and so on</li>
+    <li>A driver provides a software interface to hardware devices, enabling operating systems and other computer programs to access hardware functions without needing to know precise details of the hardware being used.</li>
+  </ul>`
+},
+{
+  eyebrow:"device drivers",
+  title:"DEVICE DRIVERS",
+  html:`<ul>
+    <li>A device driver typically communicates with the device through the computer bus or communications subsystem to which the hardware connects.</li>
+    <li>Drivers are hardware-dependent and operating-system-specific.</li>
+  </ul>`
+},
+{
+  eyebrow:"purpose of device drivers",
+  title:"PURPOSE OF DEVICE DRIVERS",
+  html:`<ul>
+    <li>Device drivers simplify programming by acting as translator between a hardware device and the applications or operating systems that use it.</li>
+    <li>Programmers can write the higher-level application code independently of whatever specific hardware the end-user is using.</li>
+    <li>For example, a high-level application for interacting with a serial port may simply have two functions for "send data" and "receive data". At a lower level, a device driver implementing these functions would communicate to the particular serial port controller installed on a user's computer</li>
+  </ul>`
+},
+{
+  eyebrow:"parts of device drivers",
+  title:"PARTS OF DEVICE DRIVERS",
+  html:`<ul>
+    <li><b>Device Specific</b>: This portion of a device remains the same across all operating system and is more about understanding and decoding the device data than software programming. A data sheet for a device is a document with technical details of the device, including its operation, performance, programming etc</li>
+    <li><b>OS specific:</b> This portion is tightly coupled with the OS mechanisms of user interfaces thus differentiates a linux device driver from windows device driver</li>
+  </ul>`
+},
+{
+  eyebrow:"classification",
+  title:"GENERAL CLASSIFICATION OF DEVICE DRIVER",
+  html:`<ul>
+    <li>Serial port drivers</li>
+    <li>Network device drivers</li>
+    <li>Flash</li>
+    <li>Bus driver</li>
+  </ul>`
+},
+{
+  eyebrow:"device independent i/o software",
+  title:"DEVICE INDEPENDENT I/O SOFTWARE",
+  html:`<ul>
+    <li>The device independent code contains most of the I/O functionality, but not most of the code since there are many drivers</li>
+    <li>All drivers do the same thing in slightly different ways due to slightly different controllers. Functions of device independent I/O software:</li>
+    <li>It provides buffering.</li>
+    <li>Support for error reporting.</li>
+    <li>Provides uniform interfacing for device drivers.</li>
+    <li>Perform allocation and releasing dedicated devices</li>
+    <li>Software provides a device independent block size</li>
+  </ul>`
+},
+{
+  eyebrow:"buffering",
+  title:"BUFFERING",
+  html:`<ul>
+    <li>"Buffering" is a technique by which the device manager can keep slower I/O devices busy during times when a process is not requiring I/O operations</li>
+    <li><b>Input buffering:</b> is a technique of having the input device read information into the primary memory before the process requests it</li>
+    <li><b>Output buffering:</b> is the technique of saving information in memory and then writing to the device while the process continues execution</li>
+  </ul>`
+},
+{
+  eyebrow:"buffering",
+  title:"TYPES OF BUFFERING",
+  html:`<ul>
+    <li>Single Buffering</li>
+    <li>Double buffering</li>
+    <li>Circular buffering</li>
+    <li>No buffering</li>
+  </ul>`
+},
+{
+  eyebrow:"references",
+  title:"REFERENCES",
+  html:`<ul class="ref-list">
+    <li><b>[1]</b> Device Controllers. Tutorialspoint. <a href="https://www.tutorialspoint.com/operating_system/os_io_hardware.html" target="_blank" rel="noopener">tutorialspoint.com/operating_system/os_io_hardware.html</a></li>
+    <li><b>[2]</b> Memory Mapped. Tutorials point. <a href="https://www.tutorialspoint.com/operating_system/os_io_hardware.html" target="_blank" rel="noopener">tutorialspoint.com/operating_system/os_io_hardware.html</a></li>
+    <li><b>[3]</b> DMA. Tutorialspoint. <a href="https://www.tutorialspoint.com/operating_system/os_io_hardware.html" target="_blank" rel="noopener">tutorialspoint.com/operating_system/os_io_hardware.html</a></li>
+    <li><b>[4]</b> Block Diagram of DMA. <a href="http://inputoutput5822.weebly.com/direct-memory-access.html" target="_blank" rel="noopener">inputoutput5822.weebly.com/direct-memory-access.html</a></li>
+    <li><b>[5]</b> Working of DMA. <a href="https://binaryterms.com/direct-memory-access-dma.html" target="_blank" rel="noopener">binaryterms.com/direct-memory-access-dma.html</a></li>
+    <li><b>[6]</b> Interrupt handling. <a href="https://www.cs.uic.edu/~jbell/CourseNotes/OperatingSystems/13_IOSystes.html" target="_blank" rel="noopener">cs.uic.edu/~jbell/CourseNotes/OperatingSystems/13_IOSystes.html</a></li>
+  </ul>`
+},
+];
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const slideArea = document.getElementById('slideArea');
+const sectionList = document.getElementById('sectionList');
+const subnavList = document.getElementById('subnavList');
+const tabstrip = document.getElementById('tabstrip');
+let current = 0;
+
+// group tabs by eyebrow topic (first occurrence index)
+const topicOrder = [];
+slides.forEach((s,i)=>{ if(!topicOrder.find(t=>t.name===s.eyebrow)) topicOrder.push({name:s.eyebrow, index:i}); });
+
+function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+
+function buildStatic(){
+  slides.forEach((s,i)=>{
+    const div = document.createElement('div');
+    div.className = 'slide';
+    div.id = 'slide-'+i;
+    div.innerHTML = `<div class="slide-eyebrow">${s.eyebrow}</div><h2>${s.title}</h2><div class="slide-content">${s.html}</div>`;
+    slideArea.appendChild(div);
+
+    const item = document.createElement('button');
+    item.className = 'section-item';
+    item.innerHTML = `<span class="n">${String(i+1).padStart(2,'0')}</span><span>${s.title.length>26? s.title.slice(0,26)+'…' : s.title}</span>`;
+    item.addEventListener('click', ()=>goTo(i));
+    sectionList.appendChild(item);
+  });
+
+  topicOrder.forEach(t=>{
+    const tab = document.createElement('button');
+    tab.className = 'tab';
+    tab.textContent = t.name;
+    tab.addEventListener('click', ()=>goTo(t.index));
+    tabstrip.appendChild(tab);
+
+    // anchor-based subnav under the active unit6.html sidebar node
+    const anchorId = 'topic-'+slugify(t.name);
+    const a = document.createElement('a');
+    a.className = 'subnav-link';
+    a.href = '#'+anchorId;
+    a.textContent = t.name;
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      goTo(t.index);
+      history.replaceState(null,'', '#'+anchorId);
+    });
+    subnavList.appendChild(a);
+    slides[t.index]._anchorId = anchorId;
+  });
+
+  // tag every topic-head slide with its anchor for reference
+  topicOrder.forEach(t=>{
+    document.getElementById('slide-'+t.index).setAttribute('data-anchor', slides[t.index]._anchorId);
+  });
+}
+buildStatic();
+
+// jump directly to a topic if the page was loaded with a #topic-* hash
+function resolveInitialHash(){
+  const h = location.hash.replace('#','');
+  if(!h) return 0;
+  const match = topicOrder.find(t=>slides[t.index]._anchorId===h);
+  return match ? match.index : 0;
+}
+
+function goTo(i){
+  current = Math.max(0, Math.min(slides.length-1, i));
+  document.querySelectorAll('.slide').forEach(el=>el.classList.remove('show'));
+  document.getElementById('slide-'+current).classList.add('show');
+  slideArea.scrollTop = 0;
+
+  document.querySelectorAll('.section-item').forEach((el,idx)=>el.classList.toggle('current', idx===current));
+  const activeTopicIdx = [...topicOrder].reverse().find(t=>t.index<=current);
+  document.querySelectorAll('.tab').forEach((el)=>{
+    el.classList.toggle('active', el.textContent===slides[current].eyebrow);
+  });
+  document.querySelectorAll('.subnav-link').forEach((el)=>{
+    el.classList.toggle('current', activeTopicIdx && el.textContent===activeTopicIdx.name);
+  });
+
+  document.getElementById('slideCounter').textContent = String(current+1).padStart(2,'0')+' / '+String(slides.length).padStart(2,'0');
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===slides.length-1;
+  document.getElementById('nextBtn').textContent = current===slides.length-1 ? 'Module Complete ✓' : 'Execute Module ›';
+
+  const pct = Math.round(((current+1)/slides.length)*100);
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progText').textContent = pct+'%';
+  document.getElementById('footProgress').textContent = (current+1)+' / '+slides.length;
+
+  const sel = document.getElementById('sectionList').children[current];
+  if(sel) sel.scrollIntoView({block:'nearest'});
+}
+goTo(resolveInitialHash());
+
+document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1));
+
+document.addEventListener('keydown', (e)=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowRight') goTo(current+1);
+  if(e.key==='ArrowLeft') goTo(current-1);
+});
+
+/* mobile sidebar toggle */
+const sidebar = document.getElementById('sidebar');
+document.getElementById('menuBtn').addEventListener('click', ()=>sidebar.classList.toggle('open'));
+
+/* ============================================================
+   TERMINAL PROMPT
+   ============================================================ */
+const promptInput = document.getElementById('promptInput');
+const promptOutput = document.getElementById('promptOutput');
+function printLine(text, cls){
+  const div = document.createElement('div');
+  div.className = 'ln'+(cls?(' '+cls):'');
+  div.textContent = text;
+  promptOutput.appendChild(div);
+  promptOutput.scrollTop = promptOutput.scrollHeight;
+}
+promptInput.addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter') return;
+  const raw = promptInput.value.trim();
+  if(!raw) return;
+  printLine('root@parul-university:~$ '+raw);
+  const cmd = raw.toLowerCase();
+
+  if(cmd==='help'){
+    printLine('available commands: help, clear, ls, whoami, progress, slide <n>', 'ok');
+    printLine('navigation: next | cd unit1 | goto 1 | reboot  → unit1.html', 'ok');
+    printLine('navigation: prev | cd unit5 | goto 5           → unit5.html', 'ok');
+  } else if(cmd==='clear'){
+    promptOutput.innerHTML='';
+  } else if(cmd==='next' || cmd==='cd unit1' || cmd==='goto 1' || cmd==='reboot'){
+    printLine('→ rebooting to unit1.html …', 'ok');
+    window.location.href = 'unit1.html';
+  } else if(cmd==='prev' || cmd==='cd unit5' || cmd==='goto 5'){
+    printLine('→ returning to unit5.html …', 'ok');
+    window.location.href = 'unit5.html';
+  } else if(cmd==='whoami'){
+    printLine('CSE student · Semester 3 · Parul University', 'ok');
+  } else if(cmd==='ls'){
+    printLine(slides.map((s,i)=>String(i+1).padStart(2,'0')+'_'+s.title.toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,28)+'.slide').join('  '));
+  } else if(cmd==='progress'){
+    printLine('slide '+(current+1)+' of '+slides.length+' — '+Math.round(((current+1)/slides.length)*100)+'% complete', 'ok');
+  } else if(cmd.startsWith('goto') || cmd.startsWith('slide')){
+    const n = parseInt(cmd.split(' ')[1],10);
+    if(!isNaN(n) && n>=1 && n<=slides.length){ goTo(n-1); printLine('→ jumped to slide '+n, 'ok'); }
+    else printLine('error: usage — goto <slide number 1-'+slides.length+'>', 'err');
+  } else {
+    printLine('command not found: '+raw+'  (type "help")', 'err');
+  }
+  promptInput.value = '';
+});
+
+/* ============================================================
+   AMBIENT BACKGROUND LOG GENERATOR
+   ============================================================ */
+const bgLog = document.getElementById('bgLog');
+const logLines = [
+  '[    0.000000] Linux version 6.6.0-os-guide (gcc 13.2.0) #1 SMP PARUL_UNIVERSITY',
+  '[    0.014021] BIOS-provided physical RAM map',
+  '[    0.041233] ACPI: Core revision 20230628',
+  '[    0.102841] device_controller: registering serial-port controller on bus0',
+  '[    0.118820] dma0: initialised, burst_mode=enabled, cycle_stealing=ready',
+  '[    0.130044] mem_map: unifying address space CPU<->MEM<->IO',
+  '[    0.201122] irq: interrupt_request_line sensed after instruction fetch',
+  '[    0.244810] driver: usb_controller loaded [block_device]',
+  '[    0.260009] driver: sound_card loaded [character_device]',
+  '[    0.311294] scheduler: polling_loop status_register check ok',
+  '[    0.355212] kernel: interrupt_handler bound to vector_address 0x1F00',
+  '[    0.402118] buffering: double_buffer allocated for stream0',
+  '[    0.415987] dma0: HOLD -> HLDA acknowledged, transferring block',
+  '[    0.470233] device_independent_io: uniform interface ready',
+  '[    0.502981] cpu0: IRET executed, program counter restored',
+  '[    0.533212] disk0: shared device, concurrent access granted',
+  '[    0.560144] printer0: dedicated device, single user lock',
+  '[    0.601987] status: all subsystems nominal — unit 6.1 online',
+];
+function fillLog(){
+  bgLog.innerHTML='';
+  const rows = 40;
+  for(let i=0;i<rows;i++){
+    const s = document.createElement('span');
+    const l = logLines[i % logLines.length];
+    s.textContent = l;
+    if(i % 7 === 0) s.classList.add('hi');
+    bgLog.appendChild(s);
+  }
+}
+fillLog();
+</script>
+</body>
+</html>

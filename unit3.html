@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>unit3.html — Chapter 3: Inter-Process Communication</title>
+<style>
+:root{
+  --bg:#08080c;
+  --panel:#0d0f14;
+  --panel2:#101319;
+  --border:#1c212b;
+  --text:#c9d1d9;
+  --dim:#6b7480;
+  --ch3:#2fb5ff;
+  --accent:var(--ch3);
+  --accent-dim:#1a4a63;
+  --glow: 0 0 18px rgba(47,181,255,.35);
+  --mono: 'Fira Code','JetBrains Mono','Courier New',monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:14px;
+  line-height:1.6;
+  overflow-x:hidden;
+}
+
+/* ===== background matrix log effect ===== */
+#bgLog{
+  position:fixed;inset:0;z-index:0;
+  overflow:hidden;opacity:.06;
+  pointer-events:none;
+  color:var(--accent);
+  font-size:12px;
+  white-space:pre;
+}
+.bgcol{
+  position:absolute;top:-100%;
+  animation:scrollDown linear infinite;
+  white-space:pre-wrap;width:20ch;
+}
+@keyframes scrollDown{
+  from{transform:translateY(0);}
+  to{transform:translateY(200%);}
+}
+
+/* ===== layout ===== */
+.wrap{
+  position:relative;z-index:1;
+  display:grid;
+  grid-template-columns:280px 1fr;
+  min-height:100vh;
+}
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr;}
+  .sidebar{position:relative;height:auto;}
+}
+
+/* ===== sidebar ===== */
+.sidebar{
+  border-right:1px solid var(--border);
+  background:linear-gradient(180deg,#0a0c11,#08080c);
+  padding:18px 14px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--accent-dim);border-radius:4px;}
+.brand{
+  font-size:13px;color:var(--accent);
+  border:1px solid var(--border);
+  padding:10px 12px;border-radius:6px;
+  margin-bottom:16px;
+  background:rgba(47,181,255,.05);
+}
+.brand .p1{color:var(--dim);}
+.tree{list-style:none;margin:0;padding:0;font-size:13px;}
+.tree li{margin:2px 0;}
+.tree a{
+  display:flex;align-items:center;gap:8px;
+  color:var(--text);text-decoration:none;
+  padding:7px 10px;border-radius:5px;
+  border:1px solid transparent;
+  transition:.15s;
+}
+.tree a:hover{background:var(--panel2);border-color:var(--border);}
+.tree a.active{
+  background:rgba(47,181,255,.12);
+  border-color:var(--accent);
+  color:var(--accent);
+  box-shadow:var(--glow);
+  font-weight:600;
+}
+.tree .icon{opacity:.8;}
+.subnav{
+  list-style:none;margin:4px 0 10px 22px;padding-left:10px;
+  border-left:1px dashed var(--border);
+  font-size:12px;
+}
+.subnav li{margin:3px 0;}
+.subnav a{
+  color:var(--dim);text-decoration:none;
+  padding:3px 6px;border-radius:4px;display:block;
+}
+.subnav a:hover{color:var(--accent);background:rgba(47,181,255,.08);}
+.sidebar hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
+.stat{font-size:11px;color:var(--dim);margin-top:14px;}
+.stat span{color:var(--accent);}
+
+/* ===== main ===== */
+main{position:relative;z-index:1;padding:26px 32px 80px;max-width:980px;}
+.termbar{
+  display:flex;align-items:center;gap:8px;
+  border:1px solid var(--border);
+  background:var(--panel);
+  border-radius:8px 8px 0 0;
+  padding:9px 14px;font-size:12px;color:var(--dim);
+}
+.dot{width:10px;height:10px;border-radius:50%;}
+.dot.r{background:#ff5f56;}
+.dot.y{background:#ffbd2e;}
+.dot.g{background:#27c93f;}
+.termpath{margin-left:10px;color:var(--accent);}
+
+.hero{
+  border:1px solid var(--border);border-top:none;
+  background:var(--panel);
+  padding:26px 24px 22px;
+  border-radius:0 0 8px 8px;
+  margin-bottom:34px;
+}
+.hero .chap{color:var(--accent);font-size:13px;letter-spacing:2px;text-transform:uppercase;}
+.hero h1{
+  margin:8px 0 6px;font-size:30px;color:#eaf6ff;
+  text-shadow:0 0 24px rgba(47,181,255,.25);
+}
+.hero p.sub{color:var(--dim);margin:0;font-size:13px;}
+.badge{
+  display:inline-block;margin-top:14px;
+  border:1px solid var(--accent);color:var(--accent);
+  padding:4px 10px;border-radius:20px;font-size:11px;
+  background:rgba(47,181,255,.08);
+}
+
+section.panel{
+  border:1px solid var(--border);
+  background:var(--panel);
+  border-radius:8px;
+  margin-bottom:22px;
+  overflow:hidden;
+  scroll-margin-top:20px;
+}
+.panel .head{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 18px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel2);
+}
+.panel .head .idx{
+  color:var(--accent);font-weight:700;font-size:12px;
+  border:1px solid var(--accent-dim);
+  padding:2px 8px;border-radius:4px;
+}
+.panel .head h2{margin:0;font-size:16px;color:#eaf6ff;font-weight:600;}
+.panel .body{padding:18px 20px;}
+.panel .body p{margin:0 0 12px;color:var(--text);}
+.panel .body ul, .panel .body ol{margin:0 0 12px;padding-left:22px;}
+.panel .body li{margin:5px 0;}
+.panel .body strong{color:var(--accent);}
+
+.figcap{
+  color:var(--dim);font-size:11.5px;margin-top:6px;
+  border-left:2px solid var(--accent-dim);padding-left:8px;
+}
+
+.codebox{
+  background:#05070a;border:1px solid var(--border);
+  border-radius:6px;padding:14px 16px;
+  font-size:12.5px;color:#9fe3ff;
+  overflow-x:auto;margin:12px 0;
+  white-space:pre;
+}
+.codebox .cm{color:#5b7a8c;}
+.codebox .kw{color:#ff9d6c;}
+
+table.dtab{
+  border-collapse:collapse;width:100%;margin:12px 0;font-size:12.5px;
+}
+table.dtab th, table.dtab td{
+  border:1px solid var(--border);padding:8px 10px;text-align:left;
+}
+table.dtab th{background:var(--panel2);color:var(--accent);}
+table.dtab tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+@media (max-width:700px){.two-col{grid-template-columns:1fr;}}
+
+.subhead{color:var(--accent);font-size:13.5px;margin:14px 0 6px;font-weight:600;}
+
+/* index list */
+.idxlist{columns:2;column-gap:26px;}
+.idxlist li{margin-bottom:6px;font-size:13px;}
+.idxlist a{color:var(--text);text-decoration:none;}
+.idxlist a:hover{color:var(--accent);}
+@media (max-width:700px){.idxlist{columns:1;}}
+
+/* stepper */
+.stepper{
+  display:flex;justify-content:space-between;gap:14px;
+  margin-top:40px;flex-wrap:wrap;
+}
+.stepbtn{
+  flex:1;min-width:220px;
+  border:1px solid var(--accent-dim);
+  background:var(--panel2);
+  color:var(--accent);text-decoration:none;
+  padding:16px 18px;border-radius:8px;
+  font-size:13px;transition:.2s;
+  display:flex;flex-direction:column;gap:4px;
+}
+.stepbtn:hover{border-color:var(--accent);box-shadow:var(--glow);background:rgba(47,181,255,.08);}
+.stepbtn small{color:var(--dim);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;}
+.stepbtn.next{text-align:right;align-items:flex-end;}
+
+/* terminal prompt */
+#promptbox{
+  margin-top:34px;border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;background:var(--panel);
+}
+#promptbox .head{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel2);font-size:12px;color:var(--dim);}
+#promptOutput{
+  padding:12px 16px;font-size:12.5px;color:var(--dim);
+  max-height:220px;overflow-y:auto;
+}
+#promptOutput div{margin-bottom:4px;}
+#promptOutput .cmd{color:var(--accent);}
+.promptline{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;border-top:1px solid var(--border);
+}
+.promptline span.ps1{color:var(--accent);font-weight:700;white-space:nowrap;}
+.promptline input{
+  flex:1;background:transparent;border:none;outline:none;
+  color:var(--text);font-family:var(--mono);font-size:13px;
+}
+
+footer.foot{
+  text-align:center;color:var(--dim);font-size:11px;margin-top:40px;
+}
+footer.foot span{color:var(--accent);}
+
+::selection{background:rgba(47,181,255,.35);}
+</style>
+</head>
+<body>
+
+<div id="bgLog"></div>
+
+<div class="wrap">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand"><span class="p1">user@parul-os</span>:<span>~/OS_Guide$</span></div>
+
+    <ul class="tree">
+      <li><a href="unit1.html"><span class="icon">📄</span> unit1.html</a></li>
+      <li><a href="unit2.html"><span class="icon">📄</span> unit2.html</a></li>
+      <li>
+        <a href="unit3.html" class="active"><span class="icon">📂</span> unit3.html</a>
+        <ul class="subnav">
+          <li><a href="#s-intro">Introduction to IPC</a></li>
+          <li><a href="#s-why">Why we need IPC</a></li>
+          <li><a href="#s-race">Race condition</a></li>
+          <li><a href="#s-race-ex">Example of race condition</a></li>
+          <li><a href="#s-critical">Critical section</a></li>
+          <li><a href="#s-needcs">Need of critical section</a></li>
+          <li><a href="#s-solcs">Solution to critical section</a></li>
+          <li><a href="#s-sync">Solution to synchronization problem</a></li>
+          <li><a href="#s-pc">Producer &amp; Consumer Problem</a></li>
+          <li><a href="#s-sem">Semaphore</a></li>
+          <li><a href="#s-monitor">Monitor</a></li>
+          <li><a href="#s-pc-monitor">Producer-Consumer using Monitor</a></li>
+          <li><a href="#s-rw">Reader's &amp; Writer Problem</a></li>
+          <li><a href="#s-dining">Dining Philosopher's Problem</a></li>
+          <li><a href="#s-ref">References</a></li>
+        </ul>
+      </li>
+      <li><a href="unit4.html"><span class="icon">📄</span> unit4.html</a></li>
+      <li><a href="unit5.html"><span class="icon">📄</span> unit5.html</a></li>
+      <li><a href="unit6.html"><span class="icon">📄</span> unit6.html</a></li>
+    </ul>
+
+    <hr>
+    <div class="stat">THEME: <span>Neon Blue #2fb5ff</span></div>
+    <div class="stat">MODULE: <span>03 / 06</span></div>
+    <div class="stat">STATUS: <span>ACTIVE</span></div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="termbar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <div class="termpath">root@parul-university:~/OS_Guide/unit3.html</div>
+    </div>
+
+    <div class="hero">
+      <div class="chap">Chapter-3</div>
+      <h1>INTER-PROCESS COMMUNICATION</h1>
+      <p class="sub">Mr. Mohammad Asif — Assistant Professor, Computer Science and Engineering — Parul University</p>
+      <span class="badge">NAAC A++ | Introduction &amp; Programming with ESP8266</span>
+    </div>
+
+    <!-- INDEX -->
+    <section class="panel" id="s-index">
+      <div class="head"><span class="idx">IDX</span><h2>Content / Index</h2></div>
+      <div class="body">
+        <ul class="idxlist">
+          <li><a href="#s-intro">Introduction to IPC……………………………………………………….1</a></li>
+          <li><a href="#s-why">Why we need IPC………………………………………………………….2</a></li>
+          <li><a href="#s-race">Race condition………………………………………………………………3</a></li>
+          <li><a href="#s-critical">Critical section………………………………………………………………5</a></li>
+          <li><a href="#s-solcs">Solution to critical section…………………………………………….7</a></li>
+          <li><a href="#s-sync">Solution of synchronization problem…………………………….9</a></li>
+          <li><a href="#s-pc">Producer consumer problem………………………………………16</a></li>
+          <li><a href="#s-sem">Semaphore………………………………………………………………….19</a></li>
+          <li><a href="#s-monitor">Monitor……………………………………………………………………….22</a></li>
+          <li><a href="#s-pc-monitor">Producer consumer problem using monitor………………24</a></li>
+          <li><a href="#s-rw">Readers and writer problem……………………………………….27</a></li>
+          <li><a href="#s-dining">Dining philosophy problem……………..………………………31-39</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Introduction to IPC -->
+    <section class="panel" id="s-intro">
+      <div class="head"><span class="idx">01</span><h2>Introduction To IPC</h2></div>
+      <div class="body">
+        <p><strong>IPC</strong> refers to a mechanism which allows communication between two or more processes to perform their actions simultaneously.</p>
+        <p>Processes that are executing concurrently in a program are of two types-</p>
+        <p><strong>(i) Independent Processes:-</strong>These are those processes which does not dependent on execution of other process in same program. Independent processes don't share data with another process.</p>
+        <p><strong>(ii) Co-operating Processes:-</strong> These are the processes which can affect or get affected by other processes during execution. Co-operating processes can share data with another processes in simultaneous execution.</p>
+      </div>
+    </section>
+
+    <!-- Why we need IPC -->
+    <section class="panel" id="s-why">
+      <div class="head"><span class="idx">02</span><h2>Why we need IPC?</h2></div>
+      <div class="body">
+        <p><strong>There are several reasons which allows processes to co-operate:-</strong></p>
+        <ol>
+          <li>Information sharing</li>
+          <li>Computation speedup</li>
+          <li>Modularity</li>
+          <li>Convenience</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Race condition -->
+    <section class="panel" id="s-race">
+      <div class="head"><span class="idx">03</span><h2>Race condition</h2></div>
+      <div class="body">
+        <p>Race condition is a situation arise due to concurrent execution of more than one processes which are accessing and manipulating the same shared data and the result of execution depends upon the specific order where the access take place.</p>
+        <p>Race condition leads to inconsistency which is totally undesirable.</p>
+        <p class="subhead">Reasons for Race Condition</p>
+        <ol>
+          <li>Exact instruction execution order cannot be predicted</li>
+          <li>Resource (file, memory, data etc…) sharing.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Example of race condition -->
+    <section class="panel" id="s-race-ex">
+      <div class="head"><span class="idx">04</span><h2>Example of race condition</h2></div>
+      <div class="body">
+        <p>Assume that two threads each increment the value of a global integer variable by 1. Ideally, the following sequence of operations would take place:</p>
+        <table class="dtab">
+          <tr><th>Thread 1</th><th>Thread 2</th><th></th><th>Integer value</th></tr>
+          <tr><td></td><td></td><td></td><td>0</td></tr>
+          <tr><td>read value</td><td></td><td>←</td><td>0</td></tr>
+          <tr><td>increase value</td><td></td><td></td><td>0</td></tr>
+          <tr><td>write back</td><td></td><td>→</td><td>1</td></tr>
+          <tr><td></td><td>read value</td><td>←</td><td>1</td></tr>
+          <tr><td></td><td>increase value</td><td></td><td>1</td></tr>
+          <tr><td></td><td>write back</td><td>→</td><td>2</td></tr>
+        </table>
+        <p>In the case shown above, the final value is 2, as expected. However, if the two threads run simultaneously without locking or synchronization, the outcome of the operation could be wrong. The alternative sequence of operations below demonstrates this scenario:</p>
+        <table class="dtab">
+          <tr><th>Thread 1</th><th>Thread 2</th><th></th><th>Integer value</th></tr>
+          <tr><td></td><td></td><td></td><td>0</td></tr>
+          <tr><td>read value</td><td></td><td>←</td><td>0</td></tr>
+          <tr><td></td><td>read value</td><td>←</td><td>0</td></tr>
+          <tr><td>increase value</td><td></td><td></td><td>0</td></tr>
+          <tr><td></td><td>increase value</td><td></td><td>0</td></tr>
+          <tr><td>write back</td><td></td><td>→</td><td>1</td></tr>
+          <tr><td></td><td>write back</td><td>→</td><td>1</td></tr>
+        </table>
+        <p>In this case, the final value is 1 instead of the correct result of 2. This occurs because here the increment operations are not mutually exclusive. Mutually exclusive operations are those that cannot be interrupted while accessing some resource such as a memory location.</p>
+      </div>
+    </section>
+
+    <!-- Critical section -->
+    <section class="panel" id="s-critical">
+      <div class="head"><span class="idx">05</span><h2>Critical section</h2></div>
+      <div class="body">
+        <p>Critical section is piece of code which contains some shared code of variable which is accessible by each process concurrently in order to complete execution. There must be only one process is allowed at a time in critical section otherwise more than one access may lead to inconsistency. concurrent accesses to shared resources can lead to unexpected or erroneous behaviour , so part of the program where the shared resource is accessed is protected. This protected section is the critical section or critical region.</p>
+        <div class="figcap">Figure :1 [image source google ]</div>
+      </div>
+    </section>
+
+    <!-- Need of critical section -->
+    <section class="panel" id="s-needcs">
+      <div class="head"><span class="idx">06</span><h2>Need of critical section</h2></div>
+      <div class="body">
+        <p>Process A have to read variable 'x' and process B has to write to the same variable 'x' at the same time if A needs to read the updated value of 'x', executing Process A and Process B at the same time may not give required results. To prevent this, variable 'x' is protected by a critical section. First, B gets the access to the section. Once B finishes writing the value, A gets the access to the critical section and variable 'x' can be read.</p>
+        <div class="codebox">Process A:
+
+// Process A
+.
+.
+b = x + 5;              <span class="cm">// instruction executes at time = Tx</span>
+.
+
+Process B:
+
+// Process B
+.
+.
+x = 3 + z;               <span class="cm">// instruction executes at time = Tx</span>
+.</div>
+      </div>
+    </section>
+
+    <!-- Solution to critical section -->
+    <section class="panel" id="s-solcs">
+      <div class="head"><span class="idx">07</span><h2>Solution to critical section</h2></div>
+      <div class="body">
+        <p>Brute-Force approach by using locking mechanism</p>
+        <div class="codebox">do {
+    entry section    <span class="cm">// controls the entry into critical section and gets a LOCK on required resources</span>
+    critical section  <span class="cm">// the critical part</span>
+    exit section     <span class="cm">// removes the LOCK from the resources and let the others know that its critical section is over</span>
+    remainder section <span class="cm">// rest of the section</span>
+} while (TRUE);</div>
+
+        <p class="subhead">To critical section (Continued)</p>
+        <p><strong>(i) Mutual Exclusion:</strong> Out of a group of cooperating processes, only one process can be in its critical section at a given point of time.</p>
+        <p><strong>(ii) Progress:</strong> If no process is in its critical section, and if one or more threads want to execute their critical section then any one of these threads must be allowed to get into its critical section.</p>
+        <p><strong>(iii) Bounded Waiting:</strong> After a process makes a request for getting into its critical section, there is a limit for how many other processes can get into their critical section, before this process's request is granted. So after the limit is reached, system must grant the process permission to get into its critical section.</p>
+      </div>
+    </section>
+
+    <!-- Solution to synchronization problem -->
+    <section class="panel" id="s-sync">
+      <div class="head"><span class="idx">08</span><h2>Solution to synchronization problem</h2></div>
+      <div class="body">
+        <p>There are some mechanisms have been introduced for synchronization problem which are as follows-</p>
+        <ol>
+          <li>Hardware solution</li>
+          <li>Software solution</li>
+          <li>Strict alteration</li>
+        </ol>
+
+        <p class="subhead">Hardware Approach to synchronization problem:-</p>
+        <ol>
+          <li>Exclusive access to memory location always assumed</li>
+          <li>Test-and-Set: special machine-level instruction</li>
+          <li>Swap: atomically swaps contents of two words</li>
+        </ol>
+        <p><strong>Test-and-Set Instruction</strong></p>
+        <ol start="4">
+          <li>hardware assistance for process synchronization .</li>
+          <li>a special hardware instruction that does two operations atomically . i.e., both operations are executed or neither is
+            <ol type="a">
+              <li>sets the result to current value</li>
+              <li>changes current value to true</li>
+              <li>when describing machine language (CPU) operations, the verb 'set' means 'set to true' .</li>
+            </ol>
+          </li>
+        </ol>
+
+        <p class="subhead">Test-and-Set Instruction (Cont.)</p>
+        <div class="codebox">int TestAndSet(int &amp;lock) {
+    int initial = lock;
+    lock = 1;
+    return initial;
+}
+
+void enter_CS(X)
+{
+  while test-and-set(X) ;
+}
+
+void leave_CS(X)
+{
+  X = 0;
+}</div>
+        <div class="figcap">Figure :3 [image source google ]</div>
+
+        <p class="subhead">Hardware Approach to synchronization problem (Peterson's Solution):-</p>
+        <p>It is a two process solution. We must assume that LOAD and STORE instructions are atomic and can not be interrupted in between.</p>
+        <p>The two processes will share two variables (i) <strong>int</strong> turn :- is used to indicate that whose turn is there to enter in critical section. (ii) <strong>Boolean</strong> flag[2]:- is used to indicate whether a process is ready to enter in critical section the flag[i] = true {means Pi is ready}</p>
+        <div class="codebox">do {
+    flag[i] = TRUE;                       <span class="cm">entry section</span>
+    turn = j;
+    while (flag[j] &amp;&amp; turn == j);
+    critical section
+    flag[i] = FALSE;                      <span class="cm">exit section</span>
+    remainder section
+} while (1)</div>
+        <div class="figcap">Figure :4 [image source google ]</div>
+
+        <div class="codebox">PROCESS 1                              PROCESS 2
+do {                                    do {
+    flag1 = TRUE;                           flag2 = TRUE;
+    turn = 2;                               turn = 1;
+    while (flag2 &amp;&amp; turn == 2);              while (flag1 &amp;&amp; turn == 1);
+    critical section…..                     critical section…..
+    flag1 = FALSE;                          flag2 = FALSE;
+    remainder section…..                    remainder section…..
+} while (1)                            } while (1)
+
+Shared Variables: flag1, flag2, turn</div>
+        <div class="figcap">Figure :5</div>
+
+        <p class="subhead">Analysis:-</p>
+        <p>(i) Mutual Exclusion is assured as only one process can access the critical section at any time.</p>
+        <p>(ii) Progress is also assured, as a process outside the critical section does not block other processes from entering the critical section.</p>
+        <p>(iii) Bounded Waiting is preserved as every process gets a fair chance.</p>
+
+        <p class="subhead">Disadvantages:-</p>
+        <p>(i) It involves Busy waiting.</p>
+        <p>(ii) It is limited to 2 processes.</p>
+
+        <p class="subhead">Strict Alteration:-</p>
+        <p>Turn Variable or Strict Alternation Approach is the software mechanism implemented at user mode. It is a busy waiting solution which can be implemented only for two processes. In this approach, A turn variable is used which is actually</p>
+        <p>This approach can only be used for only two processes. In general, let the two processes be Pi and Pj. They share a variable called turn variable. The pseudo code of the program can be given as following.</p>
+        <div class="codebox">Non - CS
+while (turn ! = i);
+Critical Section
+turn = j;
+Non - CS
+
+Non - CS
+while (turn ! = j);
+Critical Section
+turn = i ;
+Non - CS</div>
+        <div class="figcap">Figure :6[image source google ]</div>
+      </div>
+    </section>
+
+    <!-- Producer & Consumer Problem -->
+    <section class="panel" id="s-pc">
+      <div class="head"><span class="idx">09</span><h2>PRODUCER AND CONSUMER PROBLEM</h2></div>
+      <div class="body">
+        <p>It is multi-process synchronization problem. It is also known as bounded buffer problem. This problem describes two processes producer and consumer, who share common, fixed size buffer.</p>
+        <ul>
+          <li>Producer process will Produce some data item and put it into buffer.</li>
+          <li>Consumer process will consume this data item (remove it from the buffer).</li>
+        </ul>
+        <p class="subhead">Condition for inconsistency:-</p>
+        <p>a) Producer must not try to produce any data item to buffer if buffer size is full.</p>
+        <p>b) Consumer must not try to consume any data item if buffer is empty.</p>
+
+        <p class="subhead">Solution for Producer:-</p>
+        <p>a) Producer either go to sleep or discard data if the buffer is full.</p>
+        <p>b) Once the consumer removes an item from the buffer, it notifies the producer to put the data into buffer. (by using some synchronization tool)</p>
+
+        <p class="subhead">Solution for Consumer:-</p>
+        <p>a) Consumer can go to sleep if the buffer is empty.</p>
+        <p>b) Once the producer puts data into buffer, it notifies the consumer to remove (use) data item from buffer. (By using some synchronization tool)</p>
+
+        <table class="dtab">
+          <tr><th></th><th>Producer</th><th>Consumer</th></tr>
+          <tr><td>Empty</td><td>YES</td><td>NO</td></tr>
+          <tr><td>Filled</td><td>NO</td><td>YES</td></tr>
+          <tr><td>Partially filled</td><td>YES</td><td>YES</td></tr>
+        </table>
+        <div class="figcap">Figure :7[image source google ]</div>
+
+        <p class="subhead">Some inter-process communication primitives (sleep &amp; wakeup)</p>
+        <ul>
+          <li>Some inter-process communication primitives cause the calling process to be blocked instead of wasting CPU time when they are not allowed to enter their critical regions.</li>
+          <li>One of the simplest pair is the sleep and wakeup.</li>
+          <li>Sleep is a system call that causes the caller to block, that is, be suspended until another process wakes it up.</li>
+          <li>The wakeup call has one parameter, the process to be awakened.</li>
+          <li>Alternatively, both sleep and wakeup each have one parameter, a memory address used to match up sleep with wakeup.</li>
+          <li>As an example of how these primitives can be used, let us consider the <strong>producer-consumer</strong> problem (also known as the <strong>bounded-buffer</strong> problem).</li>
+          <li>Two processes share a common, fixed size buffer.</li>
+          <li>One of them, the producer, puts information into the buffer, and the other one, the consumer, takes it out.</li>
+          <li>Trouble arises when the producer wants to put a new item in the buffer, but buffer is already full.</li>
+          <li>The solution for the producer is to go to sleep whenever the buffer is full.</li>
+          <li>When the consumer removes one or more items from the buffer and vacant slots will be available, consumer awakens the producer.</li>
+          <li>Similarly, if the consumer wants to remove an item from the buffer and sees that the buffer is empty, it goes to sleep until the producer puts something in the buffer and wakes it up.</li>
+          <li>This approach sounds simple enough, but it leads to the same kinds of race conditions we saw earlier with the spooler directory.</li>
+          <li>To keep track of the number of items in the buffer, we will need a variable, count.</li>
+          <li>Buffer can hold maximum N data items. The producer first check the value of count, if it is N then producer will go to sleep.</li>
+          <li>If count is less than N, then the producer will add an item and increment count.</li>
+          <li>The consumer's code is similar: first test count to see if it is 0.</li>
+          <li>If it is, go to sleep, if it is nonzero, remove an item and decrement the counter.</li>
+          <li>Each of the processes also tests to see if the other should be awakened, and if so, wakes it up.</li>
+          <li>The code for both producer and consumer is shown in figure 3.1.</li>
+        </ul>
+        <div class="codebox">#define N 100                                    <span class="cm">/* number of slots in the buffer */</span>
+int count = 0;                                 <span class="cm">/* number of items in the buffer */</span>
+
+void producer(void)
+{
+    int item;
+
+    while (TRUE) {                             <span class="cm">/* repeat forever */</span>
+        item = produce_item();                 <span class="cm">/* generate next item */</span>
+        if (count == N) sleep();               <span class="cm">/* if buffer is full, go to sleep */</span>
+        insert_item(item);                     <span class="cm">/* put item in buffer */</span>
+        count = count + 1;                     <span class="cm">/* increment count of items in buffer */</span>
+        if (count == 1) wakeup(consumer);      <span class="cm">/* was buffer empty? */</span>
+    }
+}
+
+void consumer(void)
+{
+    int item;
+
+    while (TRUE) {                             <span class="cm">/* repeat forever */</span>
+        if (count == 0) sleep();               <span class="cm">/* if buffer is empty, got to sleep */</span>
+        item = remove_item();                  <span class="cm">/* take item out of buffer */</span>
+        count = count - 1;                     <span class="cm">/* decrement count of items in buffer */</span>
+        if (count == N - 1) wakeup(producer);  <span class="cm">/* was buffer full? */</span>
+        consume_item(item);                    <span class="cm">/* print item */</span>
+    }
+}</div>
+        <div class="figcap">Figure 3-1. The producer-consumer problem using sleep &amp; wake up system calls.</div>
+      </div>
+    </section>
+
+    <!-- Semaphore -->
+    <section class="panel" id="s-sem">
+      <div class="head"><span class="idx">10</span><h2>SEMAPHORE</h2></div>
+      <div class="body">
+        <p>Semaphores are integer variables that are used to solve the critical section problem by using two atomic operations, wait() and signal() that are used for process synchronization.</p>
+        <p>The definitions of wait() and signal() are as follows</p>
+        <p><strong>Wait:-</strong>The wait operation decrements the value of its argument S, if it is positive. If S is negative or zero, then no operation is performed.</p>
+        <div class="codebox">wait(S)
+{
+ while (S&lt;=0); 
+  S--;
+}</div>
+        <p><strong>Signal:-</strong> The signal operation increments the value of its argument S.</p>
+        <div class="codebox">signal(S)
+{ S++;
+}</div>
+        <p class="subhead">Types of Semaphores:-</p>
+        <p>There are two main types of semaphores i.e. counting semaphores and binary semaphores. these are given as follows</p>
+        <p><strong>Counting Semaphores:-</strong> These are integer value semaphores and have an unrestricted value domain. These semaphores are used to coordinate the resource access, where the semaphore count is the number of available resources. If the resources are added, semaphore count automatically incremented and if the resources are removed, the count I decremented.</p>
+        <p><strong>Binary Semaphores:-</strong> The binary semaphores are like counting semaphores but their value is restricted to 0 and 1. The wait operation only works when the semaphore is 1 and the signal operation succeeds when semaphore is 0. It is sometimes easier to implement binary semaphores than counting semaphores.</p>
+
+        <p class="subhead">Semaphore and Bounded Buffer Producer Consumer Problem.</p>
+        <p><strong>Semaphore:</strong></p>
+        <ul>
+          <li>A semaphore is a variable that provides an abstraction for controlling access of a shared resource by multiple processes in a parallel programming environment.</li>
+          <li>There are 2 types of semaphores:
+            <ol>
+              <li>Binary semaphores: - Binary semaphores have 2 methods associated with it (up, down / lock, unlock). Binary semaphores can take only 2 values (0/1). They are used to acquire locks.</li>
+              <li>Counting semaphores: - Counting semaphore can have possible values more than two.</li>
+            </ol>
+          </li>
+        </ul>
+        <p><strong>Bounded Buffer Producer Consumer problem:</strong></p>
+        <ul>
+          <li>A buffer of size N is shared by several processes. We are given sequential code
+            <ul>
+              <li>insert_item - adds an item to the buffer.</li>
+              <li>remove_item - removes an item from the buffer.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <div class="codebox">#define N 100                                  <span class="cm">/* number of slots in the buffer */</span>
+typedef int semaphore;                        <span class="cm">/* semaphores are a special kind of int */</span>
+semaphore mutex = 1;                          <span class="cm">/* controls access to critical region */</span>
+semaphore empty = N;                          <span class="cm">/* counts empty buffer slots */</span>
+semaphore full = 0;                           <span class="cm">/* counts full buffer slots */</span>
+
+void producer(void)
+{
+    int item;
+
+    while (TRUE) {                            <span class="cm">/* TRUE is the constant 1 */</span>
+        item = produce_item();                <span class="cm">/* generate something to put in buffer */</span>
+        down(&amp;empty);                          <span class="cm">/* decrement empty count */</span>
+        down(&amp;mutex);                          <span class="cm">/* enter critical region */</span>
+        insert_item(item);                    <span class="cm">/* put new item in buffer */</span>
+        up(&amp;mutex);                            <span class="cm">/* leave critical region */</span>
+        up(&amp;full);                             <span class="cm">/* increment count of full slots */</span>
+    }
+}
+
+void consumer(void)
+{
+    int item;
+
+    while (TRUE) {                            <span class="cm">/* infinite loop */</span>
+        down(&amp;full);                           <span class="cm">/* decrement full count */</span>
+        down(&amp;mutex);                          <span class="cm">/* enter critical region */</span>
+        item = remove_item();                 <span class="cm">/* take item from buffer */</span>
+        up(&amp;mutex);                            <span class="cm">/* leave critical region */</span>
+        up(&amp;empty);                            <span class="cm">/* increment count of empty slots */</span>
+        consume_item(item);                   <span class="cm">/* do something with the item */</span>
+    }
+}</div>
+        <div class="figcap">Figure 3-2 The producer-consumer problem using semaphores.</div>
+        <p><strong>Implementation of Bounded Buffer Producer Consumer problem using Semaphore:</strong></p>
+
+        <ul>
+          <li>In the above algorithm we have N slots in buffer, into which producer can insert item and from which consumer can consume item only.</li>
+          <li>Semaphore is special kind of integer.</li>
+          <li>Empty is the number of empty buffer slots and full is the number of full buffer slots.</li>
+          <li>Semaphore variable Mutex is used for mutual exclusion.</li>
+          <li>Initially there no item in buffer means buffer is empty.</li>
+          <li>Whenever Producer wants to insert some item in buffer, it calls void producer (void) and follows the steps given below:
+            <ol>
+              <li>Generate something to put in buffer</li>
+              <li>As producer will be inserting item in the buffer, it will decrement empty count.</li>
+              <li>Then it will perform down operation on the Mutex to get the exclusive access of shared buffer so, consumer cannot access buffer until producer finishes its work.</li>
+              <li>Now producer enters in the critical region i.e. it inserts the item into buffer.</li>
+              <li>When it leaves the critical region, it does up on Mutex.</li>
+              <li>Finally, it Increments the full count as one item is inserted into the buffer.</li>
+            </ol>
+          </li>
+          <li>Consumer will consume some item from buffer and call void consumer (void) and follows the steps given below:
+            <ol>
+              <li>Decrement the value of full count as consumer will remove an item from buffer.</li>
+              <li>Then it will perform down the on Mutex so that, producer cannot access buffer until consumer will finish its work.</li>
+              <li>Enter in critical section.</li>
+              <li>Take item from buffer.</li>
+              <li>Up Mutex and exit from critical section.</li>
+            </ol>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Monitor -->
+    <section class="panel" id="s-monitor">
+      <div class="head"><span class="idx">11</span><h2>Monitor</h2></div>
+      <div class="body">
+        <ul>
+          <li>A more elevated level synchronization primitive.</li>
+          <li>A monitor is a bunch of techniques, variables, and information structures that are completely assembled in an exceptional sort of module or bundle.</li>
+          <li>Procedures may call the strategies in a monitor at whatever point they need to, however, they can't directly get to the monitor's interior data structures from methodology announced outside the monitor.</li>
+          <li>Monitor have a significant property for accomplishing common rejection: just one procedure can be dynamic in a monitor at any moment.</li>
+          <li>At the point when a procedure calls a monitor technique, the initial hardly any directions of the method will verify whether some other procedure is as of now dynamic inside the monitor .</li>
+          <li>Assuming this is the case, the calling procedure will be suspended until the different procedure has left the monitor. On the off chance that no different procedure is utilizing the monitor, the calling procedure may enter.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Producer consumer problem using monitor -->
+    <section class="panel" id="s-pc-monitor">
+      <div class="head"><span class="idx">12</span><h2>Producer consumer problem using monitor</h2></div>
+      <div class="body">
+        <ul>
+          <li>The arrangement proposes condition factors, alongside two procedures on them, wait and signal.</li>
+          <li>At the point when a monitor method finds that it can't proceed (e.g., the maker finds the buffer full), it does a lookout for some condition variable, full.</li>
+          <li>This activity causes the calling procedure to block. It additionally permits another procedure that had been recently block from entering the screen to enter now.</li>
+          <li>This different procedure the customer, can awaken its dozing accomplice by doing a sign on the condition variable that its accomplice is looking out for.</li>
+          <li>To abstain from having two dynamic procedures in the monitor simultaneously a sign explanation may show up just as the last proclamation in a monitor method.</li>
+          <li>On the off chance that a sign is done on a condition variable on which a few procedures are pausing, just one of them, controlled by the framework scheduler, is retrieve.</li>
+        </ul>
+
+        <div class="two-col">
+          <div>
+            <div class="codebox">monitor Producer_Consumer
+{
+    int item_Count;
+
+    condition full;
+    condition empty;
+
+    procedure add(item)
+    {
+        while (item_Count == Buffer_S)
+        wait(full);
+    }
+
+    putItemIntoBuffer(item);
+
+    item_count =item_count +1;
+
+    if (item_count==1)
+    {
+        notify(empty);
+    }
+}</div>
+            <div class="figcap">Figure :8</div>
+          </div>
+          <div>
+            <div class="codebox">Procedure remove()
+{
+    while (item_Count == 0)
+    {
+        wait(empty);
+    }
+
+    item = removeItemFromBuffer();
+
+    item_Count = item_Count - 1;
+
+    if(item_Count == Buffer_S - 1)
+    {
+        notify(full);
+    }
+}</div>
+            <div class="figcap">Figure :9</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reader's & Writer Problem -->
+    <section class="panel" id="s-rw">
+      <div class="head"><span class="idx">13</span><h2>Reader's &amp; Writer Problem</h2></div>
+      <div class="body">
+        <ul>
+          <li>Reader's writer problem is a one of the example of a classic synchronization problem.</li>
+          <li>Consider below situation when resource shared between number of people.</li>
+          <li>If one user is accessing the file so at the same time no other user can read and write that same file. Otherwise change will not reflects.</li>
+          <li>However different users can read same file simultaneously.</li>
+          <li>This situation consider as reader's and writer's problem</li>
+          <li>Lets take a look into problem statement more.</li>
+          <li>Two operation we consider here one is Read another is write operation.</li>
+          <li>We have two user consider here one is reader and another one is writer.</li>
+          <li>If one reader is using file and one writer come to access that same file is a problem (R + W = Problem)</li>
+          <li>If one writer is using file and one reader come to to access same file is a problem (W + R = Problem)</li>
+          <li>If one writer is using file and another write come to access same file is a problem. (W + W = Problem)</li>
+          <li>If one reader is using file and another reader come to access same file so no problem (R + R = No problem).</li>
+          <li>This four case we have to consider.</li>
+          <li>Here we use semaphore because here synchronization requires to take care of given cases.</li>
+        </ul>
+
+        <p class="subhead">Reader &amp; Writer Problem using Semaphore</p>
+        <ul>
+          <li>In the readers and writers problem, many competing processes are wishing to perform reading and writing operations in a database.</li>
+          <li>It is acceptable to have multiple processes reading the database at the same time, but if one process is updating (writing) the database, no other processes may have access to the database, not even readers.</li>
+          <li>In this solution, the first reader to get access to the database does a down on the semaphore db.</li>
+        </ul>
+
+        <div class="two-col">
+          <div>
+            <div class="codebox">int read_count = 0
+
+semaphore mutex = 1
+semaphore b =1
+
+void reader(void)
+{
+    while(true)
+    {
+        down(mutex);
+
+        read_count = read_count+1;
+        if(read_count== 1) then down(b)
+
+        up(mutex)
+
+        readDataBase();
+
+        down(mutex)
+
+        read_count =read_count-1;
+
+        if(read_count== 0)then up (b)
+        up(mutex);
+
+        use_read_data();
+    }
+}</div>
+            <div class="figcap">Figure :10</div>
+          </div>
+          <div>
+            <div class="codebox">Void write(void)
+{
+    while(true)
+    {
+        down(b);
+
+        readDataBase();
+    }
+}</div>
+            <div class="figcap">Figure :11</div>
+          </div>
+        </div>
+
+        <div class="codebox">typedef int Semaphore;
+Semaphore mutex = 1;                  <span class="cm">// Controls access to the reader count</span>
+Semaphore db = 1;                     <span class="cm">// Controls access to the database</span>
+int reader_count = 0;                 <span class="cm">// The number of processes reading the data base</span>
+
+void Reader(void)
+{
+    while (TRUE) {                                 <span class="cm">// loop forever</span>
+        down(&amp;mutex);                                <span class="cm">// gain access to reader_count</span>
+        reader_count = reader_count + 1;             <span class="cm">// increment the reader_count</span>
+        if (reader_count == 1)                       <span class="cm">/* if this is the first process to read the database, a down on
+                                                          db is executed to gain the access of the Database and to
+                                                          prevent writer process from accessing database */</span>
+            down(&amp;db);
+        up(&amp;mutex);                                  <span class="cm">// allow other processes to access reader_count</span>
+
+        read_database();
+
+        down(&amp;mutex);                                <span class="cm">// gain access to reader_count</span>
+        reader_count = reader_count - 1;             <span class="cm">// decrement reader_count</span>
+        if (reader_count == 0)                       <span class="cm">/* if there are no more processes reading from the Database,
+                                                          leave the control of database &amp; allow writing process to
+                                                          access the data */</span>
+            up(&amp;db);
+        up(&amp;mutex);                                  <span class="cm">// allow other processes to access reader_count</span>
+        use_read_data();                             <span class="cm">// use the data read from the database (non-critical)</span>
+    }
+}
+
+void Writer(void)
+{
+    while (TRUE) {                     <span class="cm">// loop forever</span>
+        create_data();                 <span class="cm">// create data to enter into database (non-critical)</span>
+        down(&amp;db);                     <span class="cm">// gain access to the database</span>
+        write_db();                    <span class="cm">// write information to the database</span>
+        up(&amp;db);                       <span class="cm">// release exclusive access to the database</span>
+    }
+}</div>
+
+        <p>Subsequent readers only increment a counter, rc. As readers leave, they decrement the counter and the last one out does an up on the semaphore, allowing a blocked writer, if there is one, to get in. Suppose that while a reader is using the database, another reader comes along. Since having two readers at the same time is not a problem, the second reader is admitted.</p>
+        <p>A third and subsequent readers can also be admitted if they come along.</p>
+        <p>Now suppose that a writer comes along. The writer cannot be admitted to the database, since writers must have exclusive access, so the writer is suspended.</p>
+        <p>As long as at least one reader is still active, subsequent readers are admitted.</p>
+        <p>As a consequence of this strategy, as long as there is a steady supply of readers, they will all get in as soon as they arrive.</p>
+        <p>The writer will be kept suspended until no reader is present. If a new reader arrives, say, every 2 seconds, and each reader takes 5 seconds to do its work, the writer will never allow accessing the database.</p>
+        <p>To prevent this situation, the solution is given as: when a reader arrives and a writer is waiting, the reader is suspended behind the writer instead of being admitted immediately.</p>
+        <p>In this way, a writer has to wait for readers that were active when it arrived to finish but does not have to wait for readers that came along after it. The disadvantage of this solution is that it achieves less concurrency and thus lower performance.</p>
+      </div>
+    </section>
+
+    <!-- Dining Philosopher's Problem -->
+    <section class="panel" id="s-dining">
+      <div class="head"><span class="idx">14</span><h2>Dining Philosopher's Problem</h2></div>
+      <div class="body">
+        <p>Dining philosopher's problem is a classic multiprocess synchronization problem.</p>
+        <p>Problem is summarized as 5 philosophers sitting at a round table doing 2 things, eating and thinking.</p>
+        <p>While eating they are not thinking and while thinking they are not eating.</p>
+        <p>Each philosopher has plates that are 5 plates. And there is a fork place between each pair of adjacent philosophers that is total of 5 forks.</p>
+        <p>Each philosopher needs 2 forks to eat. Each philosopher can only use the forks on his immediate left and immediate right.</p>
+        <div class="figcap">Figure :12 dining philosopher's problem [1]</div>
+
+        <p class="subhead">Cont..</p>
+        <p>The "pick up forks" part is the key point. How does a philosopher pick up forks?</p>
+        <p>The problem is each fork is shared by two philosophers and hence a shared resource. We certainly do not want a philosopher to pick up a fork that has already been picked up by his neighbor. This is a race condition.</p>
+        <p>To address this problem, we may consider each fork as a shared item protected by a mutex lock.</p>
+        <p>Each philosopher, before he can eat, locks his left fork and locks his right fork. If the acquisitions of both locks are successful, this philosopher now owns two locks (hence two forks), and can eat.</p>
+        <p>After finishes easting, this philosopher releases both forks, and thinks. This execution flow is shown below.</p>
+
+        <div class="codebox">   Think
+     │
+     ▼
+Lock left fork
+     │
+     ▼
+Lock right fork
+     │
+     ▼
+    Eat
+     │
+     ▼
+Unlock left fork
+     │
+     ▼
+Unlock right fork
+     │
+     └──────────► (back to Think)</div>
+
+        <p>As we take a look in given figure five philosopher ( P0,P1,P2,P3,P4) seating on dining table and given chopsticks (C0,C1,C2,C3,C4) to eat food on table .each philosopher requires tow chopsticks at a same time to eat food</p>
+        <p>At any instant, a philosopher is either eating or thinking. If philosopher is eating have to pick chopstick one from their left and one from their right.</p>
+        <p>If philosopher is thinking it down the chopstick on table.</p>
+
+        <p>For example philosopher P0 want to eat food it require two chop stick C0 and C1 as consider to below here i = 0 for p0 as 0<sup>th</sup> position.</p>
+        <div class="codebox">take_chopstick(i);          = C0
+take_chopstick((i+1) % N); = (0+1)mod5 = C1</div>
+
+        <p class="subhead">Now discuss case 1</p>
+        <p>In which one by one philosopher is eating and thinking . which is best case. So if philosopher P0 is eating with chopstick C0 &amp; C1 then put the chopstick and then other P1 philosopher is come to eat which require chopstick C1 and C2 .as we see chopstick is now available for philosopher P1 because philosopher P0 already put down</p>
+
+        <div class="codebox">void philisopher (void)
+{
+    while(true)
+    {
+        thinking();
+
+        take_chopstick(i);
+        take_chopstick((i+1) % N);
+        eat();
+
+        put_chopstick(i);
+        put_chopstick((i+1) % N);
+    }
+}</div>
+        <div class="figcap">Figure :13</div>
+
+        <p class="subhead">Now lets discuss Case 2</p>
+        <p>In which if philosopher P0 is eating with chopstick C0 &amp; C1 and at the same time philosopher P1 enter to eat so it require chopstick C1 &amp; C2 . Now in this case C1 chopstick not available for Philosopher P1 because it taken by philosopher P0 already.</p>
+        <p>To deal with is situation Binary semaphore use</p>
+        <p>When one philosopher eat the food with needed chopstick and <strong>case 2</strong> situation occur it block that philosopher. otherwise it allow another philosopher if its require chopstick available on table so at some time multiple philosopher come and eat and put chopstick if their required chopstick available on the table .</p>
+
+        <p>Consider this given table in this it shows which semaphore require by each philosophers.</p>
+        <table class="dtab">
+          <tr><th>Philosopher</th><th>Semaphores used</th></tr>
+          <tr><td>P0</td><td>S0,S1</td></tr>
+          <tr><td>P1</td><td>S1,S2</td></tr>
+          <tr><td>P2</td><td>S2,S3</td></tr>
+          <tr><td>P3</td><td>S3,S4</td></tr>
+          <tr><td>P4</td><td>S4,S0</td></tr>
+        </table>
+        <div class="figcap">Table:1</div>
+
+        <div class="codebox">void philisopher (void)
+{
+    while(true)
+    {
+        thinking();
+
+        wait(take_chopstick(Si));
+        wait(take_chopstick((Si+1) % N));
+        eat();
+
+        signal( put_chopstick(i));
+        signal( put_chopstick((i+1) % N));
+    }
+}</div>
+        <div class="figcap">Figure :14</div>
+
+        <p>Lets consider now at starting condition all semaphore are 1.</p>
+        <p>Now if Philosopher P0 is using S0 and S1 semaphore at present so it become 0 Until Philosopher put it down . So another philosopher who want to use common semaphore not allow at time.</p>
+
+        <p class="subhead">Consider case 3</p>
+        <p>If all five philosopher comes at time and pick their first semaphore (S0,S1,S2,S3,S4) shown in Table 3 so for all philosopher second semaphore for will not available.</p>
+        <table class="dtab">
+          <tr><th>S0</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th></tr>
+          <tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+        </table>
+        <div class="figcap">Table: 2 (S0 and S1 taken by P0 → both drop to 0)</div>
+
+        <p>This situation consider as a deadlock. To avoid this situation philosopher P4 need to swipe their semaphore as below Table 4. So when P4 comes it will not allow Due to not availability of their first P3 semaphore. So S4 will remain 1 and will use S4 &amp; S3 for eat and put it back. So again S3 &amp; S4 will available as show in Table 6 so further that P2 will use S2 &amp; S3 and run further process .</p>
+
+        <table class="dtab">
+          <tr><th>Philosopher</th><th>Semaphores (Table 3)</th></tr>
+          <tr><td>P0</td><td>S0,S1</td></tr>
+          <tr><td>P1</td><td>S1,S2</td></tr>
+          <tr><td>P2</td><td>S2,S3</td></tr>
+          <tr><td>P3</td><td>S3,S4</td></tr>
+          <tr><td>P4</td><td>S4,S0</td></tr>
+        </table>
+        <div class="figcap">Table: 3</div>
+
+        <table class="dtab">
+          <tr><th>Philosopher</th><th>Semaphores (Table 4 — swapped)</th></tr>
+          <tr><td>P0</td><td>S0,S1</td></tr>
+          <tr><td>P1</td><td>S1,S2</td></tr>
+          <tr><td>P2</td><td>S2,S3</td></tr>
+          <tr><td>P3</td><td>S3,S4</td></tr>
+          <tr><td>P4</td><td>S0,S4</td></tr>
+        </table>
+        <div class="figcap">Table: 4</div>
+
+        <table class="dtab">
+          <tr><th>S0</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th></tr>
+          <tr><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+        </table>
+        <div class="figcap">Table: 5</div>
+
+        <table class="dtab">
+          <tr><th>S0</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th></tr>
+          <tr><td>0</td><td>0</td><td>0</td><td>1</td><td>1</td></tr>
+        </table>
+        <div class="figcap">Table: 6</div>
+
+        <table class="dtab">
+          <tr><th>S0</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th></tr>
+          <tr><td>0</td><td>0</td><td>1</td><td>1</td><td>1</td></tr>
+        </table>
+        <div class="figcap">Table: 7</div>
+      </div>
+    </section>
+
+    <!-- References -->
+    <section class="panel" id="s-ref">
+      <div class="head"><span class="idx">15</span><h2>References</h2></div>
+      <div class="body">
+        <p>[1] Silberschatz, A., Galvin, P. B., &amp; Gagne, G. (2005). Operating system concepts. Hoboken, NJ: J. Wiley &amp; Sons.</p>
+        <p>[2] Stallings, W. (2018). Operating systems: Internals and design principles. Prentice-Hall</p>
+        <p>[3] Tanenbaum, A. (2014). Modern operating systems. Harlow: Pearson.</p>
+        <p>[4] Nutt, G. J. (2004). Operating systems: A modern perspective. Boston: Pearson/Addison Wesley.</p>
+        <p>[5] Bower T. Operating System Structure. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/struct.html</p>
+        <p>[6] Bower T. Basic Operating System Concepts. K–State Polytechnic. http://faculty.salina.k-state.edu/tim/ossg/Introduction/OSrole.html</p>
+      </div>
+    </section>
+
+    <!-- STEPPER -->
+    <div class="stepper">
+      <a class="stepbtn prev" href="unit2.html">
+        <small>← Previous Module</small>
+        unit2.html
+      </a>
+      <a class="stepbtn next" href="unit4.html">
+        <small>Execute Next Module →</small>
+        unit4.html
+      </a>
+    </div>
+
+    <!-- TERMINAL PROMPT -->
+    <div id="promptbox">
+      <div class="head">/root/OS_Guide/unit3.html — interactive shell &nbsp;|&nbsp; type <span style="color:var(--accent)">help</span></div>
+      <div id="promptOutput">
+        <div>Welcome to <span class="cmd">unit3.html</span> — Chapter 3: Inter-Process Communication.</div>
+        <div>Type <span class="cmd">help</span> for a list of commands.</div>
+      </div>
+      <div class="promptline">
+        <span class="ps1">root@unit3:~$</span>
+        <input id="cmdInput" type="text" autocomplete="off" spellcheck="false" placeholder="type a command...">
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span>Parul University</span> · NAAC A++ · Chapter 3 — Inter-Process Communication · unit3.html
+    </footer>
+  </main>
+</div>
+
+<script>
+/* ===== background scrolling log effect ===== */
+(function(){
+  const bg = document.getElementById('bgLog');
+  const chars = ['mutex_lock()','sem_wait(S)','down(&mutex)','up(&full)','fork()','critical_section','race_condition','TestAndSet()','producer()','consumer()','pthread_join','deadlock_avoid','P0->P1->P2','turn=j;','flag[i]=TRUE','signal(S)','wait(S)','0x7ffee2a1','sys_call()','IPC_channel'];
+  const cols = Math.floor(window.innerWidth/90);
+  for(let i=0;i<cols;i++){
+    const col = document.createElement('div');
+    col.className='bgcol';
+    col.style.left = (i*90)+'px';
+    col.style.animationDuration = (14+Math.random()*18)+'s';
+    col.style.animationDelay = (-Math.random()*20)+'s';
+    let text='';
+    for(let j=0;j<40;j++){ text += chars[Math.floor(Math.random()*chars.length)] + '\n'; }
+    col.textContent = text;
+    bg.appendChild(col);
+  }
+})();
+
+/* ===== interactive terminal ===== */
+const out = document.getElementById('promptOutput');
+const input = document.getElementById('cmdInput');
+
+function printLine(html){
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  out.appendChild(d);
+  out.scrollTop = out.scrollHeight;
+}
+
+function runCommand(raw){
+  const cmd = raw.trim();
+  const lc = cmd.toLowerCase();
+  printLine('<span class="cmd">root@unit3:~$</span> ' + cmd);
+
+  if(lc === '' ) { return; }
+
+  if(lc === 'help'){
+    printLine('Available commands:');
+    printLine('&nbsp;&nbsp;ls&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- list OS_Guide modules');
+    printLine('&nbsp;&nbsp;clear&nbsp;&nbsp;&nbsp;- clear terminal output');
+    printLine('&nbsp;&nbsp;next / cd unit4 / goto 4  - go to unit4.html');
+    printLine('&nbsp;&nbsp;prev / cd unit2 / goto 2  - go to unit2.html');
+    printLine('&nbsp;&nbsp;help&nbsp;&nbsp;&nbsp;&nbsp;- show this message');
+    return;
+  }
+
+  if(lc === 'clear'){
+    out.innerHTML = '';
+    return;
+  }
+
+  if(lc === 'ls'){
+    printLine('unit1.html&nbsp;&nbsp;unit2.html&nbsp;&nbsp;<span class="cmd">unit3.html</span>&nbsp;&nbsp;unit4.html&nbsp;&nbsp;unit5.html&nbsp;&nbsp;unit6.html');
+    return;
+  }
+
+  if(lc === 'next' || lc === 'cd unit4' || lc === 'goto 4'){
+    printLine('Navigating to unit4.html ...');
+    setTimeout(()=>{ window.location.href = 'unit4.html'; }, 350);
+    return;
+  }
+
+  if(lc === 'prev' || lc === 'cd unit2' || lc === 'goto 2'){
+    printLine('Navigating to unit2.html ...');
+    setTimeout(()=>{ window.location.href = 'unit2.html'; }, 350);
+    return;
+  }
+
+  printLine('bash: ' + cmd + ': command not found. Type <span class="cmd">help</span>.');
+}
+
+input.addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){
+    runCommand(input.value);
+    input.value = '';
+  }
+});
+</script>
+</body>
+</html>
