@@ -641,14 +641,16 @@ footer.pfoot{
     </div>
 
     <div class="chapter-stepper">
-      <a class="stepper-btn prev" href="unit4.html">
-        <span>&larr; PREVIOUS MODULE</span>
-        <span class="stepper-sub">unit4.html</span>
-      </a>
-      <a class="stepper-btn next" href="unit6.html">
-        <span>EXECUTE NEXT MODULE</span>
-        <span class="stepper-sub">unit6.html</span>
-        <span>&rarr;</span>
+  <a class="stepper-btn prev" href="unit4.html">
+    <span>&larr; PREVIOUS MODULE</span>
+    <span class="stepper-sub">unit4.html</span>
+  </a>
+  <a class="stepper-btn next" href="unit6.html">
+    <span>EXECUTE NEXT MODULE</span>
+    <span class="stepper-sub">unit6.html</span>
+    <span>&rarr;</span>
+  </a>
+</div>
       </a>
     </div>
 
@@ -1349,18 +1351,21 @@ function handleCommand(raw){
    }
    break;
     case 'cd':
-      if(args[0] === 'unit6' || args[0] === 'unit6.html'){
-        pushTermLine(`<span class="p">$</span> cd unit6 → loading unit6.html`);
-        window.location.href = 'unit6.html';
-      } else if(args[0] === 'unit4' || args[0] === 'unit4.html'){
-        pushTermLine(`<span class="p">$</span> cd unit4 → loading unit4.html`);
-        window.location.href = 'unit4.html';
-      } else if(args[0] === 'unit5' || args[0] === 'unit5.html' || args[0] === '.'){
-        pushTermLine(`<span class="p">$</span> already inside unit5.html`);
-      } else {
-        pushTermLine(`cd: ${args[0] || '(no path)'}: no such directory`);
-      }
-      break;
+   if(args[0] === 'index' || args[0] === 'index.html' || args[0] === 'unit1' || args[0] === 'unit1.html'){
+     pushTermLine(`<span class="p">$</span> cd index → loading index.html`);
+     window.location.href = 'index.html';
+   } else if(args[0] === 'unit6' || args[0] === 'unit6.html'){
+     pushTermLine(`<span class="p">$</span> cd unit6 → loading unit6.html`);
+     window.location.href = 'unit6.html';
+   } else if(args[0] === 'unit4' || args[0] === 'unit4.html'){
+     pushTermLine(`<span class="p">$</span> cd unit4 → loading unit4.html`);
+     window.location.href = 'unit4.html';
+   } else if(args[0] === 'unit5' || args[0] === 'unit5.html' || args[0] === '.'){
+     pushTermLine(`<span class="p">$</span> already inside unit5.html`);
+   } else {
+     pushTermLine(`cd: ${args[0] || '(no path)'}: no such directory`);
+   }
+   break;
     case 'whoami':
       pushTermLine('Enigma — B.Tech CSE, Semester III, Division 3A10, Parul Institute of Technology.');
       break;
