@@ -531,16 +531,16 @@ a{color:var(--accent);}
     </div>
 
     <div id="chapterStepper">
-      <a class="stepper-btn prev" href="unit3.html">
-        <span>&larr; PREVIOUS MODULE</span>
-        <span class="stepper-sub">unit3.html</span>
-      </a>
-      <a class="stepper-btn next" href="unit5.html">
-        <span>EXECUTE NEXT MODULE</span>
-        <span class="stepper-sub">unit5.html</span>
-        <span>&rarr;</span>
-      </a>
-    </div>
+  <a class="stepper-btn prev" href="unit3.html">
+    <span>&larr; PREVIOUS MODULE</span>
+    <span class="stepper-sub">unit3.html</span>
+  </a>
+  <a class="stepper-btn next" href="unit5.html">
+    <span>EXECUTE NEXT MODULE</span>
+    <span class="stepper-sub">unit5.html</span>
+    <span>&rarr;</span>
+  </a>
+</div>
   </main>
 </div>
 
@@ -551,7 +551,7 @@ a{color:var(--accent);}
    ============================================================ */
 
 const CHAPTERS = [
-  { id:1, file:"ch1_process_mgmt.sh",      label:"Process Management",        state:"done",   color:"var(--ch1)", href:"unit1.html" },
+  { id:1, file:"ch1_process_mgmt.sh",      label:"Process Management",        state:"done",   color:"var(--ch1)", href:"index.html" },
   { id:2, file:"ch2_cpu_scheduling.sh",    label:"CPU Scheduling",            state:"done",   color:"var(--ch2)", href:"unit2.html" },
   { id:3, file:"ch3_synchronization.sh",   label:"Process Synchronization",   state:"done",   color:"var(--ch3)", href:"unit3.html" },
   { id:4, file:"ch4_deadlocks.sh",         label:"Deadlocks",                 state:"active", color:"var(--ch4)", href:"unit4.html" },
@@ -1024,11 +1024,18 @@ function handleCommand(raw){
   const [base, ...rest] = cmd.split(/\s+/);
   const arg = rest.join(' ');
 
+   if(n === 1){
+  printPrompt("→ jumping to chapter 1 … loading index.html", 'ok');
+  window.location.href = 'index.html';
+}
+
   switch(base.toLowerCase()){
     case 'help':
-      printPrompt("commands: help · next · prev · goto <n> · cd unit<n> · list · ls · cat <file> · whoami · date · clear", 'ok');
-      printPrompt("  next / cd unit5 / goto 5  → jump to unit5.html", 'ok');
-      printPrompt("  prev / cd unit3 / goto 3  → jump to unit3.html", 'ok');
+case 'help':
+    printPrompt("commands: help · next · prev · goto <n> · cd unit<n> · list · ls · cat <file> · whoami · date · clear", 'ok');
+    printPrompt("  next / cd unit5 / goto 5  → jump to unit5.html", 'ok');
+    printPrompt("  prev / cd unit3 / goto 3  → jump to unit3.html", 'ok');
+    printPrompt("  home / cd index / goto 1  → jump to index.html", 'ok');
       break;
     case 'next':
       printPrompt("→ leaving unit4.html … loading unit5.html", 'ok');
