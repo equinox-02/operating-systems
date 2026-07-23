@@ -696,7 +696,7 @@ footer.pfoot{
    CHAPTER / SIDEBAR DATA
 ============================================================ */
 const chapters = [
-  {id:1, key:'ch1', file:'ch1_process_management.sh', name:'Process Management', status:'done', href:'unit1.html'},
+  {id:1, key:'ch1', file:'ch1_process_management.sh', name:'Process Management', status:'done', href:'index.html'},
   {id:2, key:'ch2', file:'ch2_cpu_scheduling.sh', name:'CPU Scheduling', status:'done', href:'unit2.html'},
   {id:3, key:'ch3', file:'ch3_process_sync.sh', name:'Process Synchronization', status:'done', href:'unit3.html'},
   {id:4, key:'ch4', file:'ch4_deadlocks.sh', name:'Deadlocks', status:'done', href:'unit4.html'},
@@ -1311,10 +1311,11 @@ function handleCommand(raw){
 
   switch(base.toLowerCase()){
     case 'help':
-      pushTermLine(`Available commands: <b style="color:#8ff0a4">help</b>, <b style="color:#8ff0a4">ls</b>, <b style="color:#8ff0a4">clear</b>, <b style="color:#8ff0a4">next</b>, <b style="color:#8ff0a4">prev</b>, <b style="color:#8ff0a4">goto &lt;n&gt;</b>, <b style="color:#8ff0a4">cd unit&lt;n&gt;</b>, <b style="color:#8ff0a4">whoami</b>, <b style="color:#8ff0a4">progress</b>`);
-      pushTermLine(`  next / cd unit6 / goto 6  → jump to unit6.html`);
-      pushTermLine(`  prev / cd unit4 / goto 4  → jump to unit4.html`);
-      break;
+   pushTermLine(`Available commands: <b style="color:#8ff0a4">help</b>, <b style="color:#8ff0a4">ls</b>, <b style="color:#8ff0a4">clear</b>, <b style="color:#8ff0a4">next</b>, <b style="color:#8ff0a4">prev</b>, <b style="color:#8ff0a4">goto &lt;n&gt;</b>, <b style="color:#8ff0a4">cd unit&lt;n&gt;</b>, <b style="color:#8ff0a4">whoami</b>, <b style="color:#8ff0a4">progress</b>`);
+   pushTermLine(`  next / cd unit6 / goto 6  → jump to unit6.html`);
+   pushTermLine(`  prev / cd unit4 / goto 4  → jump to unit4.html`);
+   pushTermLine(`  home / cd index / goto 1  → jump to index.html`);
+   break;
     case 'ls':
       pushTermLine(sections.map(s=>s.file).join('&nbsp;&nbsp;'));
       break;
@@ -1330,20 +1331,23 @@ function handleCommand(raw){
       window.location.href = 'unit4.html';
       break;
     case 'goto':
-      const n = parseInt(args[0]);
-      if(n === 6){
-        pushTermLine(`<span class="p">$</span> → jumping to chapter 6 … loading unit6.html`);
-        window.location.href = 'unit6.html';
-      } else if(n === 4){
-        pushTermLine(`<span class="p">$</span> → jumping to chapter 4 … loading unit4.html`);
-        window.location.href = 'unit4.html';
-      } else if(n === 5 || isNaN(n) || n<1 || n>sections.length){
-        pushTermLine(`goto: invalid target. try 'goto 4', 'goto 6', or a section number between 1 and ${sections.length}`);
-      } else {
-        goToSection(n-1);
-        pushTermLine(`→ jumped to section ${n}`);
-      }
-      break;
+   const n = parseInt(args[0]);
+   if(n === 1){
+     pushTermLine(`<span class="p">$</span> → jumping to chapter 1 … loading index.html`);
+     window.location.href = 'index.html';
+   } else if(n === 6){
+     pushTermLine(`<span class="p">$</span> → jumping to chapter 6 … loading unit6.html`);
+     window.location.href = 'unit6.html';
+   } else if(n === 4){
+     pushTermLine(`<span class="p">$</span> → jumping to chapter 4 … loading unit4.html`);
+     window.location.href = 'unit4.html';
+   } else if(n === 5 || isNaN(n) || n<1 || n>sections.length){
+     pushTermLine(`goto: invalid target. try 'goto 1', 'goto 4', 'goto 6', or a section number between 1 and ${sections.length}`);
+   } else {
+     goToSection(n-1);
+     pushTermLine(`→ jumped to section ${n}`);
+   }
+   break;
     case 'cd':
       if(args[0] === 'unit6' || args[0] === 'unit6.html'){
         pushTermLine(`<span class="p">$</span> cd unit6 → loading unit6.html`);
