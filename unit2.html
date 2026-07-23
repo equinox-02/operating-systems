@@ -574,7 +574,7 @@
     <nav class="filetree">
       <div class="path-root">~/root/OS_Guide/</div>
 
-      <a class="chapter-item done" href="unit1.html" data-chapter="1">
+      <a class="chapter-item done" href="index.html" data-chapter="1">
         <span class="ico">✔</span>
         <span class="fname">unit1.html</span>
         <small>done</small>
@@ -1561,7 +1561,7 @@
         </div>
 
         <div class="chapter-nav-row">
-          <a class="prev-chapter-btn" href="unit1.html">
+          <a class="prev-chapter-btn" href="index.html">
             <span class="bracket">[</span> ← PREVIOUS MODULE: unit1.html <span class="bracket">]</span>
           </a>
           <a id="nextModuleBtn" class="next-chapter-btn" href="unit3.html">
@@ -1719,7 +1719,7 @@
       } else if(lower === 'prev' || lower === 'cd unit1'){
         resp = 'jumping to unit1.html…';
         output.textContent = (output.textContent ? output.textContent+'\n' : '') + '$ ' + cmd + '\n' + resp;
-        setTimeout(()=>{ window.location.href = 'unit1.html'; }, 250);
+        setTimeout(()=>{ window.location.href = 'index.html'; }, 250);
         return;
       } else if(unitMatch){
         const n = parseInt(unitMatch[1],10);
