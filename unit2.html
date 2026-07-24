@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>~/OS_Guide/unit2 — CPU Scheduling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --bg:#08080c;
+  --panel:#0d1117;
+  --panel-2:#111722;
+  --line:#1c2333;
+  --line-soft:#161c29;
+  --text:#dbe2ef;
+  --text-dim:#7c879c;
+  --text-faint:#4b5468;
+  --mono:'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --sans:'Inter', -apple-system, sans-serif;
+
+  --ch1:#ff3b47; /* crimson red */
+  --ch2:#39ff88; /* cyberpunk green - ACTIVE */
+  --ch3:#3fa9ff; /* neon blue */
+  --ch4:#ffc857; /* radiant gold */
+  --ch5:#ff8a2b; /* solar orange */
+  --ch6:#b9c2cf; /* metallic silver */
+
+  --accent: var(--ch2);
+  --accent-dim: #39ff8822;
+  --accent-glow: #39ff8855;
+  --accent-text: #081a0e;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  overflow-x:hidden;
+  position:relative;
+  min-height:100vh;
+}
+
+/* ============ BACKGROUND MATRIX / LOG EFFECT ============ */
+#bgLog{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:.05;
+  mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+}
+.log-col{
+  position:absolute;
+  top:-50%;
+  font-family:var(--mono);
+  font-size:11px;
+  line-height:1.7;
+  color:var(--accent);
+  white-space:pre;
+  animation: scrollDown linear infinite;
+}
+@keyframes scrollDown{
+  from{ transform:translateY(-10%); }
+  to{ transform:translateY(60%); }
+}
+
+/* ============ MOBILE HEADER & OVERLAY ============ */
+.mobile-header{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 16px;
+  background:#0a0c12;
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:0;
+  z-index:90;
+}
+.mobile-header #menuToggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  min-width:44px;
+  padding:8px 14px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--accent);
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.mobile-header .mobile-title{
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:700;
+  color:var(--text);
+}
+.mobile-header .mobile-title span{ color:var(--accent); }
+
+.sidebar-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  z-index:95;
+  opacity:0;
+  transition:opacity .3s ease;
+}
+.sidebar-overlay.active{
+  display:block;
+  opacity:1;
+}
+
+/* ============ LAYOUT ============ */
+.app{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns: 280px 1fr;
+  min-height:100vh;
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+  background:linear-gradient(180deg,#0a0c12,#0a0d14);
+  border-right:1px solid var(--line);
+  padding:22px 0 16px;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+.brand{
+  padding:0 20px 18px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:14px;
+}
+.brand .tag{
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-faint);
+  letter-spacing:.06em;
+}
+.brand h1{
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  margin-top:6px;
+  letter-spacing:-.01em;
+}
+.brand h1 span{color:var(--accent);}
+.brand .sub{
+  font-size:11px;
+  color:var(--text-dim);
+  margin-top:4px;
+  font-family:var(--sans);
+}
+
+.tree-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.12em;
+  color:var(--text-faint);
+  padding:14px 20px 8px;
+  text-transform:uppercase;
+}
+
+.chapter{
+  margin:2px 10px;
+  border-radius:8px;
+  overflow:hidden;
+}
+.chapter-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 10px;
+  min-height:44px;
+  cursor:pointer;
+  font-family:var(--mono);
+  font-size:12.5px;
+  border-radius:8px;
+  transition:all .15s ease;
+  color:var(--text-dim);
+  text-decoration:none;
+}
+.chapter-head:hover{ background:var(--line-soft); color:var(--text); }
+.chapter.done .chapter-icon{ color:var(--chcolor); }
+.chapter.done .chapter-head{ color:var(--text-dim); }
+.chapter.done .chapter-status{
+  background:rgba(255,255,255,0.03);
+  color:var(--chcolor);
+  border:1px solid var(--chcolor);
+}
+.chapter.active .chapter-head{
+  background:var(--accent-dim);
+  color:var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-glow), 0 0 12px var(--accent-glow);
+}
+.chapter.active .chapter-status{
+  background:var(--accent);
+  color:var(--accent-text);
+  font-weight:700;
+  box-shadow:0 0 8px var(--accent-glow);
+}
+.chapter.upcoming .chapter-head{ color:var(--text-dim); }
+.chapter.upcoming .chapter-status{ background:transparent; color:var(--text-faint); border:1px solid var(--line); }
+
+.chapter-icon{
+  width:15px; text-align:center; flex-shrink:0; font-size:12px;
+}
+.chapter-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chapter-status{
+  font-size:9.5px;
+  padding:2px 7px;
+  border-radius:20px;
+  font-family:var(--mono);
+  flex-shrink:0;
+}
+
+.subnav{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .35s ease;
+  border-left:1px solid var(--line);
+  margin-left:20px;
+}
+.chapter.active .subnav{ max-height:900px; }
+.subnav-item{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  min-height:44px;
+  padding:7px 10px 7px 14px;
+  font-size:11.5px;
+  font-family:var(--mono);
+  color:var(--text-dim);
+  cursor:pointer;
+  border-left:2px solid transparent;
+  transition:all .15s ease;
+  text-decoration:none;
+}
+.subnav-item .idx{ color:var(--text-faint); flex-shrink:0; }
+.subnav-item:hover{ color:var(--text); background:var(--line-soft); }
+.subnav-item.current{
+  color:var(--accent);
+  border-left:2px solid var(--accent);
+  background:var(--accent-dim);
+  font-weight:600;
+}
+
+.sidebar-foot{
+  padding:16px 20px 4px;
+  margin-top:10px;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+  line-height:1.6;
+}
+
+/* ============ MAIN ============ */
+.main{
+  padding:26px 34px 60px;
+  max-width:1080px;
+  width:100%;
+}
+.breadcrumb{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+  margin-bottom:16px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.breadcrumb .accent{ color:var(--accent); }
+.breadcrumb .sep{ color:var(--text-faint); }
+
+.hero{
+  margin-bottom:22px;
+}
+.hero .eyebrow{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--accent);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.hero h2{
+  font-size:30px;
+  font-weight:800;
+  letter-spacing:-.02em;
+  background:linear-gradient(90deg,#fff,var(--accent));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.hero p{
+  color:var(--text-dim);
+  font-size:13.5px;
+  margin-top:8px;
+  max-width:640px;
+}
+
+/* Console window */
+.console{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow: 0 0 0 1px #000, 0 20px 60px -20px #000, 0 0 40px -10px var(--accent-glow);
+  overflow:hidden;
+}
+.console-bar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:11px 16px;
+  background:var(--panel-2);
+  border-bottom:1px solid var(--line);
+}
+.dots{ display:flex; gap:7px; }
+.dot{ width:11px; height:11px; border-radius:50%; }
+.dot.red{ background:#ff5f57; }
+.dot.yellow{ background:#febc2e; }
+.dot.green{ background:#28c840; }
+.console-title{
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-dim);
+  flex:1;
+  text-align:center;
+}
+.console-title b{ color:var(--accent); font-weight:600; }
+.console-tabs-toggle{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+}
+
+.console-tabs{
+  display:flex;
+  overflow-x:auto;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  padding:0 8px;
+}
+.console-tabs::-webkit-scrollbar{height:5px;}
+.console-tabs::-webkit-scrollbar-thumb{background:var(--line);}
+.ctab{
+  font-family:var(--mono);
+  font-size:11.5px;
+  padding:11px 14px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  color:var(--text-faint);
+  white-space:nowrap;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all .15s ease;
+}
+.ctab:hover{ color:var(--text-dim); }
+.ctab.active{ color:var(--accent); border-bottom:2px solid var(--accent); }
+
+.console-body{
+  padding:26px 28px 20px;
+  min-height:340px;
+}
+.slide-count{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  margin-bottom:16px;
+  display:flex;
+  justify-content:space-between;
+}
+.slide-count .pill{
+  background:var(--accent-dim);
+  color:var(--accent);
+  border:1px solid var(--accent-glow);
+  padding:2px 9px;
+  border-radius:20px;
+}
+
+/* Cards for each slide */
+.card{
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:9px;
+  padding:18px 20px;
+  margin-bottom:16px;
+  animation: fadeUp .4s ease both;
+}
+.card h3{
+  font-size:16px;
+  color:#fff;
+  margin-bottom:10px;
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.card h3::before{
+  content:"$";
+  color:var(--accent);
+  font-family:var(--mono);
+}
+.card h4{
+  font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--accent);margin:14px 0 6px;font-weight:700;
+}
+.card p{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  margin-bottom:8px;
+}
+.card p b, .card li b{ color:var(--text); font-weight:600; }
+.card ul{ margin:6px 0 6px 0; list-style:none; }
+.card ul li{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  padding-left:18px;
+  position:relative;
+  margin-bottom:4px;
+}
+.card ul li::before{
+  content:"›";
+  position:absolute; left:0; top:0;
+  color:var(--accent);
+  font-weight:700;
+}
+.card ol{ margin:6px 0 6px 22px; }
+.card ol li{ color:var(--text-dim); font-size:14px; line-height:1.75; margin-bottom:4px; }
+.card b{ color:var(--text); }
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(8px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+/* Responsive containers for diagrams & tables */
+.diagram, .tbl-wrap, .tbl, .mem-col, .flow, .addr-box, .codebox, .pcb-stack, .termline .history{
+  overflow-x:auto;
+  max-width:100%;
+}
+
+.diagram{
+  background:#0a0e16;
+  border:1px solid var(--line);
+  border-radius:9px;
+  padding:20px;
+  margin-bottom:16px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+.diagram .cap{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+
+.flow{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
+}
+.flow .node{
+  font-family:var(--mono); font-size:11.5px;
+  border:1px solid var(--line);
+  background:#0f1420;
+  color:var(--text-dim);
+  padding:8px 12px;
+  border-radius:20px;
+  white-space:nowrap;
+}
+.flow .node.hi{ border-color:var(--accent); color:var(--accent); }
+.flow .arrow{ color:var(--text-faint); font-family:var(--mono); }
+
+.tbl{
+  border-collapse:collapse;
+  font-family:var(--mono);
+  font-size:12px;
+  width:100%;
+  max-width:100%;
+}
+.tbl th, .tbl td{
+  border:1px solid var(--line);
+  padding:8px 12px;
+  text-align:center;
+  color:var(--text-dim);
+}
+.tbl th{ background:#1c2333; color:var(--text); }
+
+.pcb-stack{
+  display:flex; flex-direction:column; border:1px solid var(--accent); border-radius:8px; overflow:hidden; min-width:180px; text-align:center; font-family:var(--mono); font-size:12px;
+}
+.pcb-stack div{
+  padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel-2); color:var(--text-dim);
+}
+.pcb-stack div:first-child{ background:var(--accent-dim); color:var(--accent); font-weight:700; }
+
+/* Nav buttons */
+.console-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 20px;
+  background:var(--panel-2);
+  border-top:1px solid var(--line);
+  gap:10px;
+  flex-wrap:wrap;
+}
+.btn{
+  font-family:var(--mono);
+  font-size:12px;
+  background:transparent;
+  color:var(--text-dim);
+  border:1px solid var(--line);
+  padding:9px 16px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:7px;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.btn:hover{ border-color:var(--accent); color:var(--accent); }
+.btn.primary{
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.btn.primary:hover{ filter:brightness(1.1); color:var(--accent-text); }
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+.progress-track{
+  flex:1; min-width:120px;
+  height:4px; background:var(--line); border-radius:4px; overflow:hidden; margin:0 8px;
+}
+.progress-fill{
+  height:100%; background:linear-gradient(90deg,var(--accent),#fff);
+  width:16%; transition:width .3s ease;
+}
+
+/* Terminal prompt input */
+.termline{
+  margin-top:18px;
+  background:#000;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px 16px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  color:#8ff0a4;
+}
+.termline .history{ max-height:110px; overflow-y:auto; margin-bottom:6px; }
+.termline .history::-webkit-scrollbar{width:5px;}
+.termline .history::-webkit-scrollbar-thumb{background:var(--line);}
+.termline .hline{ color:var(--text-dim); margin-bottom:3px; white-space:pre-wrap; }
+.termline .hline .p{ color:var(--accent); }
+.termline .row{ display:flex; align-items:center; gap:8px; }
+.termline .prompt{ color:var(--accent); flex-shrink:0; }
+.termline input{
+  background:transparent; border:none; outline:none; color:#c9f9d4; font-family:var(--mono); font-size:12.5px; flex:1; min-height:44px;
+}
+
+footer.pfoot{
+  margin-top:26px;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+
+/* ============ END-OF-CHAPTER STEPPER ============ */
+.chapter-stepper{
+  margin-top:22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.stepper-btn{
+  font-family:var(--mono);
+  font-size:12.5px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:13px 20px;
+  min-height:44px;
+  border-radius:99px;
+  text-decoration:none;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text-dim);
+  transition:border-color .15s ease, color .15s ease, transform .1s ease, background .15s ease;
+}
+.stepper-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--panel-2); }
+.stepper-btn:active{ transform:scale(.98); }
+.stepper-btn .stepper-sub{ color:var(--text-faint); font-weight:400; font-size:11px; }
+.stepper-btn.next{
+  margin-left:auto;
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.stepper-btn.next .stepper-sub{ color:rgba(8,26,14,0.75); }
+.stepper-btn.next:hover{ filter:brightness(1.08); color:var(--accent-text); }
+
+@media (max-width: 880px){
+  .mobile-header { display:flex; }
+  .app{ grid-template-columns:1fr; }
+  .sidebar{
+    position:fixed;
+    top:0; left:0; bottom:0;
+    width:280px; height:100vh;
+    z-index:100;
+    transform:translateX(-100%);
+    box-shadow:10px 0 30px rgba(0,0,0,0.8);
+  }
+  .sidebar.open{ transform:translateX(0); }
+  .main{ padding:20px 16px 50px; }
+}
+</style>
+</head>
+<body>
+
+<header class="mobile-header">
+  <button id="menuToggle" aria-label="Toggle Navigation Drawer">
+    <span class="icon">☰</span>
+    <span class="label">MENU</span>
+  </button>
+  <div class="mobile-title">OS_Guide<span>.sh</span></div>
+</header>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div id="bgLog"></div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="tag">root@parul-university:~$</div>
+      <h1>OS_Guide<span>.sh</span></h1>
+      <div class="sub">B.Tech CSE · Sem III · Div 3A10</div>
+    </div>
+
+    <div class="tree-label">/root/OS_Guide/</div>
+    <div id="chapterList"></div>
+
+    <div class="sidebar-foot">
+      # Department of CSE<br>
+      # Parul Institute of Technology
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="breadcrumb">
+      <span>~/OS_Guide</span><span class="sep">/</span><span class="accent">unit2_cpu_scheduling</span><span class="sep">/</span><span id="crumbSection">process_basics.md</span>
+    </div>
+
+    <div class="hero">
+      <div class="eyebrow">Chapter 2 · Active Module</div>
+      <h2>CPU Scheduling &amp; Process Control</h2>
+      <p>Processes, process states, suspension, PCB data structures, context switching, and multithreading models — Chapter 2 interactive study console.</p>
+    </div>
+
+    <div class="console">
+      <div class="console-bar">
+        <div class="dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+        <div class="console-title">user@parul<span style="color:var(--text-faint)">:</span><b id="titlePath">~/unit2</b><span style="color:var(--text-faint)">$</span> cat <span id="titleFile">process_basics.md</span></div>
+        <div class="console-tabs-toggle">6 sections</div>
+      </div>
+
+      <div class="console-tabs" id="consoleTabs"></div>
+
+      <div class="console-body">
+        <div class="slide-count">
+          <span>section <span id="secIdx">1</span>/<span id="secTotal">6</span></span>
+          <span class="pill" id="secPill">PROCESS BASICS</span>
+        </div>
+        <div id="cardWrap"></div>
+      </div>
+
+      <div class="console-foot">
+        <button class="btn" id="prevBtn">◀ cd .. (Previous)</button>
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+        <button class="btn primary" id="nextBtn">Next Terminal Line ▶</button>
+      </div>
+    </div>
+
+    <div class="termline">
+      <div class="history" id="termHistory">
+        <div class="hline"><span class="p">$</span> Welcome to OS_Guide terminal. Type <b style="color:#8ff0a4">help</b> to see available commands.</div>
+      </div>
+      <div class="row">
+        <span class="prompt">user@parul:~$</span>
+        <input type="text" id="termInput" placeholder="type a command… (help, ls, clear, next, prev, goto 3)" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="chapter-stepper">
+      <a class="stepper-btn prev" href="index.html">
+        <span>&larr; PREVIOUS MODULE</span>
+        <span class="stepper-sub">index.html</span>
+      </a>
+      <a class="stepper-btn next" href="unit3.html">
+        <span>EXECUTE NEXT MODULE</span>
+        <span class="stepper-sub">unit3.html</span>
+        <span>&rarr;</span>
+      </a>
+    </div>
+
+    <footer class="pfoot">Compiled locally in your browser · Parul University · Department of Computer Science &amp; Engineering</footer>
+  </main>
+</div>
+
+<script>
+const UNIT_ID = 2;
+
+/* ============================================================
+   BACKGROUND LOG SIMULATION
+============================================================ */
+(function(){
+  const bg = document.getElementById('bgLog');
+  const lines = [
+    "[  0.0121] sched: Initializing CFS CPU scheduler",
+    "[  0.0341] process: pid 101 spawned by init",
+    "[  0.0512] pcb: allocated PCB structure at 0x7ffd1e",
+    "[  0.0733] context_switch: saving registers for pid 101",
+    "[  0.0910] thread: created kernel thread kworker/0:1",
+    "[  0.1102] dispatch: switching CPU to pid 102",
+    "[  0.1340] state: pid 102 changed READY -> RUNNING",
+    "[  0.1555] interrupt: timer tick triggers scheduler",
+  ];
+  const cols = 6;
+  for(let i=0;i<cols;i++){
+    const col = document.createElement('div');
+    col.className = 'log-col';
+    col.style.left = (i*(100/cols)) + '%';
+    col.style.animationDuration = (18 + Math.random()*14) + 's';
+    col.style.animationDelay = (-Math.random()*20)+'s';
+    let text = '';
+    for(let j=0;j<40;j++){ text += lines[Math.floor(Math.random()*lines.length)] + '\n'; }
+    col.textContent = text;
+    bg.appendChild(col);
+  }
+})();
+
+/* ============================================================
+   CHAPTER / SIDEBAR DATA
+============================================================ */
+const chapters = [
+  {id:1, key:'ch1', file:'ch1_process_management.sh', name:'Process Management', status: UNIT_ID > 1 ? 'done' : (UNIT_ID === 1 ? 'active' : 'upcoming'), href:'index.html'},
+  {id:2, key:'ch2', file:'ch2_cpu_scheduling.sh', name:'CPU Scheduling', status: UNIT_ID > 2 ? 'done' : (UNIT_ID === 2 ? 'active' : 'upcoming'), href:'unit2.html'},
+  {id:3, key:'ch3', file:'ch3_process_sync.sh', name:'Process Synchronization', status: UNIT_ID > 3 ? 'done' : (UNIT_ID === 3 ? 'active' : 'upcoming'), href:'unit3.html'},
+  {id:4, key:'ch4', file:'ch4_deadlocks.sh', name:'Deadlocks', status: UNIT_ID > 4 ? 'done' : (UNIT_ID === 4 ? 'active' : 'upcoming'), href:'unit4.html'},
+  {id:5, key:'ch5', file:'ch5_memory_management.sh', name:'Memory Management', status: UNIT_ID > 5 ? 'done' : (UNIT_ID === 5 ? 'active' : 'upcoming'), href:'unit5.html'},
+  {id:6, key:'ch6', file:'ch6_file_systems.sh', name:'File Systems', status: UNIT_ID > 6 ? 'done' : (UNIT_ID === 6 ? 'active' : 'upcoming'), href:'unit6.html'},
+];
+
+function slugify(str){
+  return String(str).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+/* ============================================================
+   UNIT 2 CONTENT — VERBATIM FROM LECTURE SLIDES
+============================================================ */
+const sections = [
+{
+  id:'process_basics', pill:'PROCESS BASICS', file:'process_basics.md', label:'Concepts & Representation of a Process',
+  cards:[
+    {title:'Process Definition', body:`<p><b>A process is a program in execution.</b> Process is not as same as program code but a lot more than it.</p>
+    <p><b>Process = Program + Runtime Activities.</b></p>
+    <ul>
+      <li>An Instance of a program</li>
+      <li>Locus of Control</li>
+      <li>Unit of Execution</li>
+    </ul>`},
+    {title:'Process Creation & Termination', body:`<h4>When is a new process created</h4>
+    <ul>
+      <li>System initialization (Daemons)</li>
+      <li>Execution of a process creation system call by a running process</li>
+      <li>A user request to create a process</li>
+      <li>Initiation of a batch job</li>
+    </ul>
+    <h4>When does a process terminate</h4>
+    <ul>
+      <li>Normal exit (voluntary)</li>
+      <li>Error exit (voluntary)</li>
+      <li>Fatal error (involuntary)</li>
+      <li>Killed by another process (involuntary)</li>
+    </ul>`},
+    {title:'Representation of Process', body:`<ul>
+      <li>Programs are executable (.exe) files generally stored in Secondary Memory.</li>
+      <li>In order to execute program, it must be loaded in main memory where it becomes a process.</li>
+      <li>Process memory is divided into four sections ─ <b>stack, heap, text, and data</b>.</li>
+    </ul>
+    <div class="diagram">
+      <div class="pcb-stack">
+        <div>Stack ↓ (local variables, frame pointer)</div>
+        <div>Heap ↑ (dynamic memory allocation)</div>
+        <div>Data (global &amp; static variables)</div>
+        <div>Text (compiled program code instructions)</div>
+      </div>
+      <div class="cap">Process Memory Layout</div>
+    </div>`},
+    {title:'Process vs Program', body:`<table class="tbl">
+      <tr><th>Process</th><th>Program</th></tr>
+      <tr><td>A process is program in execution.</td><td>A program is a set of instructions.</td></tr>
+      <tr><td>An active / dynamic entity.</td><td>A passive / static entity.</td></tr>
+      <tr><td>Limited life span (created on start, terminated on finish).</td><td>Longer life span (stored on disk).</td></tr>
+      <tr><td>Holds system resources (memory, disk, printers).</td><td>Stored in a file without additional resources.</td></tr>
+      <tr><td>Contains address space in RAM.</td><td>Requires disk storage space.</td></tr>
+    </table>`}
+  ]
+},
+{
+  id:'process_states', pill:'STATES & PCB', file:'process_states.md', label:'Process States, Suspension & PCB',
+  cards:[
+    {title:'Different States of Process', body:`<ol>
+      <li><b>NEW</b> - The process is being created.</li>
+      <li><b>READY</b> - The process is waiting to be assigned to a processor.</li>
+      <li><b>RUNNING</b> - Instructions are being executed by the CPU.</li>
+      <li><b>WAITING / BLOCKED</b> - The process is waiting for some event to occur (e.g. I/O completion).</li>
+      <li><b>TERMINATED</b> - Process execution has finished.</li>
+    </ol>`},
+    {title:'Process State Transition', body:`<div class="diagram">
+      <div class="flow">
+        <span class="node">New</span><span class="arrow">→ admitted →</span>
+        <span class="node hi">Ready</span><span class="arrow">→ dispatch →</span>
+        <span class="node hi">Running</span><span class="arrow">→ exit →</span>
+        <span class="node">Terminated</span>
+      </div>
+      <div class="flow" style="margin-top:8px;">
+        <span class="node">Running</span><span class="arrow">→ I/O wait →</span>
+        <span class="node">Waiting</span><span class="arrow">→ I/O completion →</span>
+        <span class="node">Ready</span>
+      </div>
+      <div class="cap">Process State Transition Diagram</div>
+    </div>`},
+    {title:'Process Suspension', body:`<p>When main memory is full, OS swaps out blocked processes to secondary storage into <b>Blocked Suspend</b> or <b>Ready Suspend</b> states.</p>
+    <ul>
+      <li><b>Blocked Suspend:</b> Process is in secondary memory awaiting an event.</li>
+      <li><b>Ready Suspend:</b> Process is in secondary memory ready to run as soon as loaded.</li>
+    </ul>`},
+    {title:'Process Control Block (PCB)', body:`<p>PCB is a data structure maintained by the Operating System for every process, identified by Process ID (PID).</p>
+    <div class="diagram">
+      <div class="pcb-stack">
+        <div>Process ID (PID)</div>
+        <div>Process State</div>
+        <div>Program Counter (PC)</div>
+        <div>CPU Registers</div>
+        <div>CPU Scheduling Info</div>
+        <div>Memory Management Info</div>
+        <div>Accounting &amp; I/O Status</div>
+      </div>
+    </div>`}
+  ]
+},
+{
+  id:'context_switch', pill:'CONTEXT SWITCHING', file:'context_switch.md', label:'Context Switching',
+  cards:[
+    {title:'What is Context Switching?', body:`<ul>
+      <li>Switching the CPU to another process requires saving the state of the old process in its PCB and loading the saved state of the new process.</li>
+      <li>This task is known as a <b>Context Switch</b>.</li>
+      <li>Enables multitasking across multiple processes on a single CPU core.</li>
+    </ul>`},
+    {title:'Context Switch Overhead', body:`<p>Context switch time is pure overhead because the system does no useful work while switching states.</p>
+    <p>Modern operating systems use lightweight threads to minimize context switching overhead whenever possible.</p>`}
+  ]
+},
+{
+  id:'threads_intro', pill:'THREADS OVERVIEW', file:'threads_intro.md', label:'Threads Overview & Advantages',
+  cards:[
+    {title:'What is a Thread?', body:`<ul>
+      <li>A thread is a single sequence stream within a process (lightweight process).</li>
+      <li>Consists of thread ID, program counter, stack, and register set.</li>
+      <li>Shares code section, data section, and OS resources with other threads of the same process.</li>
+    </ul>`},
+    {title:'Advantages of Threads', body:`<ul>
+      <li>Reduces context switching time dramatically.</li>
+      <li>Provides concurrency within a single process.</li>
+      <li>Economical resource utilization and efficient inter-thread communication.</li>
+      <li>Takes full advantage of multiprocessor computer architectures.</li>
+    </ul>`},
+    {title:'Process vs Thread', body:`<table class="tbl">
+      <tr><th>Process</th><th>Thread</th></tr>
+      <tr><td>Heavyweight entity.</td><td>Lightweight entity.</td></tr>
+      <tr><td>Switching requires kernel interaction.</td><td>Switching can be done without kernel intervention.</td></tr>
+      <tr><td>Isolated memory space.</td><td>Shares address space, open files, and data with peer threads.</td></tr>
+    </table>`}
+  ]
+},
+{
+  id:'thread_models', pill:'THREAD MODELS', file:'thread_models.md', label:'Thread Types & Models',
+  cards:[
+    {title:'User-Level vs Kernel-Level Threads', body:`<p><b>User-Level Threads (ULT):</b> Managed entirely by user-level thread library without kernel awareness. Fast to create and switch, but a blocking system call blocks the entire process.</p>
+    <p><b>Kernel-Level Threads (KLT):</b> Supported directly by the operating system kernel. The kernel schedules threads individually across multiple processors.</p>`},
+    {title:'Multithreading Models', body:`<ul>
+      <li><b>Many-to-One Model:</b> Maps many user-level threads to one kernel thread.</li>
+      <li><b>One-to-One Model:</b> Maps each user thread to a kernel thread (provides better concurrency).</li>
+      <li><b>Many-to-Many Model:</b> Multiplexes many user threads to a smaller or equal number of kernel threads.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'ref', pill:'REFERENCES', file:'references.md', label:'References',
+  cards:[
+    {title:'References', body:`<ul>
+      <li>[1] Silberschatz, A., Galvin, P. B., &amp; Gagne, G. Operating system concepts.</li>
+      <li>[2] Stallings, W. Operating systems: Internals and design principles.</li>
+      <li>[3] Tanenbaum, A. Modern operating systems.</li>
+    </ul>`}
+  ]
+}
+];
+
+/* ============================================================
+   STATE + RENDER
+============================================================ */
+let currentSection = 0;
+
+function renderSidebar(){
+  const wrap = document.getElementById('chapterList');
+  wrap.innerHTML = '';
+  chapters.forEach(ch=>{
+    const div = document.createElement('div');
+    div.className = 'chapter ' + ch.status;
+    div.style.setProperty('--chcolor', `var(--${ch.key})`);
+
+    let icon = '📄', statusLabel = `CH${ch.id}`;
+    if(ch.status==='done'){ icon='✓'; statusLabel='DONE'; }
+    if(ch.status==='active'){ icon='▶'; statusLabel='ACTIVE'; }
+
+    div.innerHTML = `
+      <a class="chapter-head" href="${ch.href}" data-ch="${ch.id}">
+        <span class="chapter-icon">${icon}</span>
+        <span class="chapter-name">ch${ch.id}_${ch.file.replace('ch'+ch.id+'_','')}</span>
+        <span class="chapter-status">${statusLabel}</span>
+      </a>
+      <div class="subnav" id="subnav-${ch.id}"></div>
+    `;
+    wrap.appendChild(div);
+
+    if(ch.status==='active'){
+      const sub = div.querySelector('.subnav');
+      sections.forEach((s,i)=>{
+        const item = document.createElement('a');
+        item.className = 'subnav-item' + (i===currentSection?' current':'');
+        item.href = '#' + slugify(s.label || s.id);
+        item.dataset.idx = i;
+        item.innerHTML = `<span class="idx">${String(i+1).padStart(2,'0')}</span><span>${s.label}</span>`;
+        item.addEventListener('click', (e)=>{
+          e.preventDefault();
+          goToSection(i);
+          closeMobileSidebar();
+        });
+        sub.appendChild(item);
+      });
+    }
+  });
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('consoleTabs');
+  tabs.innerHTML = '';
+  sections.forEach((s,i)=>{
+    const t = document.createElement('div');
+    t.className = 'ctab' + (i===currentSection ? ' active':'');
+    t.textContent = s.file;
+    t.addEventListener('click', ()=> goToSection(i));
+    tabs.appendChild(t);
+  });
+}
+
+function renderSection(){
+  const s = sections[currentSection];
+  document.getElementById('secIdx').textContent = currentSection+1;
+  document.getElementById('secTotal').textContent = sections.length;
+  document.getElementById('secPill').textContent = s.pill;
+  document.getElementById('titleFile').textContent = s.file;
+  document.getElementById('crumbSection').textContent = s.file;
+  document.getElementById('progFill').style.width = (((currentSection+1)/sections.length)*100)+'%';
+
+  const wrap = document.getElementById('cardWrap');
+  wrap.innerHTML = '';
+  s.cards.forEach((c,i)=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (i*0.05)+'s';
+    card.innerHTML = `<h3>${c.title}</h3>${c.body}`;
+    wrap.appendChild(card);
+  });
+
+  document.getElementById('prevBtn').disabled = currentSection===0;
+  document.getElementById('nextBtn').textContent = currentSection === sections.length-1 ? 'Execute Next Module: unit3.html ✓' : 'Next Terminal Line ▶';
+
+  renderTabs();
+  renderSidebar();
+}
+
+function goToSection(i){
+  if(i<0 || i>=sections.length) return;
+  currentSection = i;
+  renderSection();
+  window.scrollTo({top:0, behavior:'smooth'});
+  const slug = slugify(sections[currentSection].label || sections[currentSection].id);
+  history.replaceState(null, "", "#" + slug);
+}
+
+function goToSlug(hash){
+  const slug = (hash || "").replace(/^#/, "");
+  if(!slug) return false;
+  const idx = sections.findIndex(s => slugify(s.label || s.id) === slug);
+  if(idx === -1) return false;
+  goToSection(idx);
+  return true;
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=> goToSection(currentSection-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(currentSection === sections.length-1){
+    pushTermLine(`<span class="p">$</span> Module ch2_cpu_scheduling.sh executed successfully.`);
+    pushTermLine(`<span class="p">$</span> → loading unit3.html`);
+    window.location.href = 'unit3.html';
+  } else {
+    goToSection(currentSection+1);
+  }
+});
+
+/* Mobile drawer toggle */
+const menuToggle = document.getElementById('menuToggle');
+const sidebarEl = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+function openMobileSidebar(){
+  sidebarEl.classList.add('open');
+  sidebarOverlay.classList.add('active');
+}
+function closeMobileSidebar(){
+  sidebarEl.classList.remove('open');
+  sidebarOverlay.classList.remove('active');
+}
+if(menuToggle){
+  menuToggle.addEventListener('click', ()=>{
+    if(sidebarEl.classList.contains('open')) closeMobileSidebar();
+    else openMobileSidebar();
+  });
+}
+if(sidebarOverlay){
+  sidebarOverlay.addEventListener('click', closeMobileSidebar);
+}
+
+/* ============================================================
+   TERMINAL PROMPT
+============================================================ */
+const termHistory = document.getElementById('termHistory');
+const termInput = document.getElementById('termInput');
+
+function pushTermLine(html){
+  const line = document.createElement('div');
+  line.className = 'hline';
+  line.innerHTML = html;
+  termHistory.appendChild(line);
+  termHistory.scrollTop = termHistory.scrollHeight;
+}
+
+function handleCommand(raw){
+  const cmd = raw.trim();
+  pushTermLine(`<span class="p">user@parul:~$</span> ${cmd}`);
+  if(cmd==='') return;
+  const [base, ...args] = cmd.split(/\s+/);
+
+  switch(base.toLowerCase()){
+    case 'help':
+      pushTermLine(`Available commands: <b style="color:#8ff0a4">help</b>, <b style="color:#8ff0a4">ls</b>, <b style="color:#8ff0a4">clear</b>, <b style="color:#8ff0a4">next</b>, <b style="color:#8ff0a4">prev</b>, <b style="color:#8ff0a4">goto &lt;n&gt;</b>, <b style="color:#8ff0a4">cd unit&lt;n&gt;</b>, <b style="color:#8ff0a4">whoami</b>, <b style="color:#8ff0a4">progress</b>`);
+      pushTermLine(`  next / cd unit3 / goto 3  → jump to unit3.html`);
+      pushTermLine(`  prev / cd index / goto 1  → jump to index.html`);
+      break;
+    case 'ls':
+      pushTermLine(sections.map(s=>s.file).join('&nbsp;&nbsp;'));
+      break;
+    case 'clear':
+      termHistory.innerHTML = '';
+      break;
+    case 'next':
+      pushTermLine(`<span class="p">$</span> → leaving unit2.html … loading unit3.html`);
+      window.location.href = 'unit3.html';
+      break;
+    case 'prev':
+      pushTermLine(`<span class="p">$</span> → leaving unit2.html … loading index.html`);
+      window.location.href = 'index.html';
+      break;
+    case 'goto':
+      const n = parseInt(args[0]);
+      if(n === 1){
+        pushTermLine(`<span class="p">$</span> → jumping to chapter 1 … loading index.html`);
+        window.location.href = 'index.html';
+      } else if(n === 3){
+        pushTermLine(`<span class="p">$</span> → jumping to chapter 3 … loading unit3.html`);
+        window.location.href = 'unit3.html';
+      } else if(n === 2 || isNaN(n) || n<1 || n>sections.length){
+        pushTermLine(`goto: section number between 1 and ${sections.length}`);
+      } else {
+        goToSection(n-1);
+        pushTermLine(`→ jumped to section ${n}`);
+      }
+      break;
+    case 'cd':
+      if(args[0] === 'index' || args[0] === 'index.html' || args[0] === 'unit1'){
+        pushTermLine(`<span class="p">$</span> cd index → loading index.html`);
+        window.location.href = 'index.html';
+      } else if(args[0] === 'unit3' || args[0] === 'unit3.html'){
+        pushTermLine(`<span class="p">$</span> cd unit3 → loading unit3.html`);
+        window.location.href = 'unit3.html';
+      } else {
+        pushTermLine(`cd: ${args[0] || '(no path)'}: no such directory`);
+      }
+      break;
+    case 'whoami':
+      pushTermLine('Enigma — B.Tech CSE, Semester III, Division 3A10, Parul Institute of Technology.');
+      break;
+    case 'progress':
+      pushTermLine(`Chapters complete: 1/6 · Current chapter: 2 (CPU Scheduling) · Section ${currentSection+1}/${sections.length}`);
+      break;
+    default:
+      pushTermLine(`bash: ${base}: command not found. Type <b style="color:#8ff0a4">help</b> for options.`);
+  }
+}
+
+termInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && termInput.value.trim()!==''){
+    handleCommand(termInput.value);
+    termInput.value = '';
+  }
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+renderSection();
+if(window.location.hash){ goToSlug(window.location.hash); }
+window.addEventListener('hashchange', ()=> goToSlug(window.location.hash));
+</script>
+</body>
+</html>

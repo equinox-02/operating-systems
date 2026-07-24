@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>~/OS_Guide/unit4 — Deadlocks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --bg:#08080c;
+  --panel:#0d1117;
+  --panel-2:#111722;
+  --line:#1c2333;
+  --line-soft:#161c29;
+  --text:#dbe2ef;
+  --text-dim:#7c879c;
+  --text-faint:#4b5468;
+  --mono:'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --sans:'Inter', -apple-system, sans-serif;
+
+  --ch1:#ff3b47; /* crimson red */
+  --ch2:#39ff88; /* cyberpunk green */
+  --ch3:#3fa9ff; /* neon blue */
+  --ch4:#ffc857; /* radiant gold - ACTIVE */
+  --ch5:#ff8a2b; /* solar orange */
+  --ch6:#b9c2cf; /* metallic silver */
+
+  --accent: var(--ch4);
+  --accent-dim: #ffc85722;
+  --accent-glow: #ffc85755;
+  --accent-text: #1f1804;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  overflow-x:hidden;
+  position:relative;
+  min-height:100vh;
+}
+
+/* ============ BACKGROUND MATRIX / LOG EFFECT ============ */
+#bgLog{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:.05;
+  mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+}
+.log-col{
+  position:absolute;
+  top:-50%;
+  font-family:var(--mono);
+  font-size:11px;
+  line-height:1.7;
+  color:var(--accent);
+  white-space:pre;
+  animation: scrollDown linear infinite;
+}
+@keyframes scrollDown{
+  from{ transform:translateY(-10%); }
+  to{ transform:translateY(60%); }
+}
+
+/* ============ MOBILE HEADER & OVERLAY ============ */
+.mobile-header{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 16px;
+  background:#0a0c12;
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:0;
+  z-index:90;
+}
+.mobile-header #menuToggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  min-width:44px;
+  padding:8px 14px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--accent);
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.mobile-header .mobile-title{
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:700;
+  color:var(--text);
+}
+.mobile-header .mobile-title span{ color:var(--accent); }
+
+.sidebar-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  z-index:95;
+  opacity:0;
+  transition:opacity .3s ease;
+}
+.sidebar-overlay.active{
+  display:block;
+  opacity:1;
+}
+
+/* ============ LAYOUT ============ */
+.app{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns: 280px 1fr;
+  min-height:100vh;
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+  background:linear-gradient(180deg,#0a0c12,#0a0d14);
+  border-right:1px solid var(--line);
+  padding:22px 0 16px;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+.brand{
+  padding:0 20px 18px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:14px;
+}
+.brand .tag{
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-faint);
+  letter-spacing:.06em;
+}
+.brand h1{
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  margin-top:6px;
+  letter-spacing:-.01em;
+}
+.brand h1 span{color:var(--accent);}
+.brand .sub{
+  font-size:11px;
+  color:var(--text-dim);
+  margin-top:4px;
+  font-family:var(--sans);
+}
+
+.tree-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.12em;
+  color:var(--text-faint);
+  padding:14px 20px 8px;
+  text-transform:uppercase;
+}
+
+.chapter{
+  margin:2px 10px;
+  border-radius:8px;
+  overflow:hidden;
+}
+.chapter-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 10px;
+  min-height:44px;
+  cursor:pointer;
+  font-family:var(--mono);
+  font-size:12.5px;
+  border-radius:8px;
+  transition:all .15s ease;
+  color:var(--text-dim);
+  text-decoration:none;
+}
+.chapter-head:hover{ background:var(--line-soft); color:var(--text); }
+.chapter.done .chapter-icon{ color:var(--chcolor); }
+.chapter.done .chapter-head{ color:var(--text-dim); }
+.chapter.done .chapter-status{
+  background:rgba(255,255,255,0.03);
+  color:var(--chcolor);
+  border:1px solid var(--chcolor);
+}
+.chapter.active .chapter-head{
+  background:var(--accent-dim);
+  color:var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-glow), 0 0 12px var(--accent-glow);
+}
+.chapter.active .chapter-status{
+  background:var(--accent);
+  color:var(--accent-text);
+  font-weight:700;
+  box-shadow:0 0 8px var(--accent-glow);
+}
+.chapter.upcoming .chapter-head{ color:var(--text-dim); }
+.chapter.upcoming .chapter-status{ background:transparent; color:var(--text-faint); border:1px solid var(--line); }
+
+.chapter-icon{
+  width:15px; text-align:center; flex-shrink:0; font-size:12px;
+}
+.chapter-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chapter-status{
+  font-size:9.5px;
+  padding:2px 7px;
+  border-radius:20px;
+  font-family:var(--mono);
+  flex-shrink:0;
+}
+
+.subnav{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .35s ease;
+  border-left:1px solid var(--line);
+  margin-left:20px;
+}
+.chapter.active .subnav{ max-height:900px; }
+.subnav-item{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  min-height:44px;
+  padding:7px 10px 7px 14px;
+  font-size:11.5px;
+  font-family:var(--mono);
+  color:var(--text-dim);
+  cursor:pointer;
+  border-left:2px solid transparent;
+  transition:all .15s ease;
+  text-decoration:none;
+}
+.subnav-item .idx{ color:var(--text-faint); flex-shrink:0; }
+.subnav-item:hover{ color:var(--text); background:var(--line-soft); }
+.subnav-item.current{
+  color:var(--accent);
+  border-left:2px solid var(--accent);
+  background:var(--accent-dim);
+  font-weight:600;
+}
+
+.sidebar-foot{
+  padding:16px 20px 4px;
+  margin-top:10px;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+  line-height:1.6;
+}
+
+/* ============ MAIN ============ */
+.main{
+  padding:26px 34px 60px;
+  max-width:1080px;
+  width:100%;
+}
+.breadcrumb{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+  margin-bottom:16px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.breadcrumb .accent{ color:var(--accent); }
+.breadcrumb .sep{ color:var(--text-faint); }
+
+.hero{
+  margin-bottom:22px;
+}
+.hero .eyebrow{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--accent);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.hero h2{
+  font-size:30px;
+  font-weight:800;
+  letter-spacing:-.02em;
+  background:linear-gradient(90deg,#fff,var(--accent));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.hero p{
+  color:var(--text-dim);
+  font-size:13.5px;
+  margin-top:8px;
+  max-width:640px;
+}
+
+/* Console window */
+.console{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow: 0 0 0 1px #000, 0 20px 60px -20px #000, 0 0 40px -10px var(--accent-glow);
+  overflow:hidden;
+}
+.console-bar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:11px 16px;
+  background:var(--panel-2);
+  border-bottom:1px solid var(--line);
+}
+.dots{ display:flex; gap:7px; }
+.dot{ width:11px; height:11px; border-radius:50%; }
+.dot.red{ background:#ff5f57; }
+.dot.yellow{ background:#febc2e; }
+.dot.green{ background:#28c840; }
+.console-title{
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-dim);
+  flex:1;
+  text-align:center;
+}
+.console-title b{ color:var(--accent); font-weight:600; }
+.console-tabs-toggle{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+}
+
+.console-tabs{
+  display:flex;
+  overflow-x:auto;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  padding:0 8px;
+}
+.console-tabs::-webkit-scrollbar{height:5px;}
+.console-tabs::-webkit-scrollbar-thumb{background:var(--line);}
+.ctab{
+  font-family:var(--mono);
+  font-size:11.5px;
+  padding:11px 14px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  color:var(--text-faint);
+  white-space:nowrap;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all .15s ease;
+}
+.ctab:hover{ color:var(--text-dim); }
+.ctab.active{ color:var(--accent); border-bottom:2px solid var(--accent); }
+
+.console-body{
+  padding:26px 28px 20px;
+  min-height:340px;
+}
+.slide-count{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  margin-bottom:16px;
+  display:flex;
+  justify-content:space-between;
+}
+.slide-count .pill{
+  background:var(--accent-dim);
+  color:var(--accent);
+  border:1px solid var(--accent-glow);
+  padding:2px 9px;
+  border-radius:20px;
+}
+
+/* Cards for each slide */
+.card{
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:9px;
+  padding:18px 20px;
+  margin-bottom:16px;
+  animation: fadeUp .4s ease both;
+}
+.card h3{
+  font-size:16px;
+  color:#fff;
+  margin-bottom:10px;
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.card h3::before{
+  content:"$";
+  color:var(--accent);
+  font-family:var(--mono);
+}
+.card h4{
+  font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--accent);margin:14px 0 6px;font-weight:700;
+}
+.card p{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  margin-bottom:8px;
+}
+.card p b, .card li b{ color:var(--text); font-weight:600; }
+.card ul{ margin:6px 0 6px 0; list-style:none; }
+.card ul li{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  padding-left:18px;
+  position:relative;
+  margin-bottom:4px;
+}
+.card ul li::before{
+  content:"›";
+  position:absolute; left:0; top:0;
+  color:var(--accent);
+  font-weight:700;
+}
+.card ol{ margin:6px 0 6px 22px; }
+.card ol li{ color:var(--text-dim); font-size:14px; line-height:1.75; margin-bottom:4px; }
+.card b{ color:var(--text); }
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(8px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+/* Responsive containers for diagrams & tables */
+.diagram, .tbl-wrap, .tbl, .mem-col, .flow, .addr-box, .codebox, .termline .history{
+  overflow-x:auto;
+  max-width:100%;
+}
+
+.diagram{
+  background:#0a0e16;
+  border:1px solid var(--line);
+  border-radius:9px;
+  padding:20px;
+  margin-bottom:16px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+.diagram .cap{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+.diagram svg{ max-width:100%; height:auto; }
+
+.flow{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
+}
+.flow .node{
+  font-family:var(--mono); font-size:11.5px;
+  border:1px solid var(--line);
+  background:#0f1420;
+  color:var(--text-dim);
+  padding:8px 12px;
+  border-radius:20px;
+  white-space:nowrap;
+}
+.flow .node.hi{ border-color:var(--accent); color:var(--accent); }
+.flow .arrow{ color:var(--text-faint); font-family:var(--mono); }
+
+.tbl{
+  border-collapse:collapse;
+  font-family:var(--mono);
+  font-size:12px;
+  width:100%;
+  max-width:100%;
+}
+.tbl th, .tbl td{
+  border:1px solid var(--line);
+  padding:8px 12px;
+  text-align:center;
+  color:var(--text-dim);
+}
+.tbl th{ background:#1c2333; color:var(--text); }
+
+/* Nav buttons */
+.console-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 20px;
+  background:var(--panel-2);
+  border-top:1px solid var(--line);
+  gap:10px;
+  flex-wrap:wrap;
+}
+.btn{
+  font-family:var(--mono);
+  font-size:12px;
+  background:transparent;
+  color:var(--text-dim);
+  border:1px solid var(--line);
+  padding:9px 16px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:7px;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.btn:hover{ border-color:var(--accent); color:var(--accent); }
+.btn.primary{
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.btn.primary:hover{ filter:brightness(1.1); color:var(--accent-text); }
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+.progress-track{
+  flex:1; min-width:120px;
+  height:4px; background:var(--line); border-radius:4px; overflow:hidden; margin:0 8px;
+}
+.progress-fill{
+  height:100%; background:linear-gradient(90deg,var(--accent),#fff);
+  width:10%; transition:width .3s ease;
+}
+
+/* Terminal prompt input */
+.termline{
+  margin-top:18px;
+  background:#000;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px 16px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  color:#8ff0a4;
+}
+.termline .history{ max-height:110px; overflow-y:auto; margin-bottom:6px; }
+.termline .history::-webkit-scrollbar{width:5px;}
+.termline .history::-webkit-scrollbar-thumb{background:var(--line);}
+.termline .hline{ color:var(--text-dim); margin-bottom:3px; white-space:pre-wrap; }
+.termline .hline .p{ color:var(--accent); }
+.termline .row{ display:flex; align-items:center; gap:8px; }
+.termline .prompt{ color:var(--accent); flex-shrink:0; }
+.termline input{
+  background:transparent; border:none; outline:none; color:#c9f9d4; font-family:var(--mono); font-size:12.5px; flex:1; min-height:44px;
+}
+
+footer.pfoot{
+  margin-top:26px;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+
+/* ============ END-OF-CHAPTER STEPPER ============ */
+.chapter-stepper{
+  margin-top:22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.stepper-btn{
+  font-family:var(--mono);
+  font-size:12.5px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:13px 20px;
+  min-height:44px;
+  border-radius:99px;
+  text-decoration:none;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text-dim);
+  transition:border-color .15s ease, color .15s ease, transform .1s ease, background .15s ease;
+}
+.stepper-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--panel-2); }
+.stepper-btn:active{ transform:scale(.98); }
+.stepper-btn .stepper-sub{ color:var(--text-faint); font-weight:400; font-size:11px; }
+.stepper-btn.next{
+  margin-left:auto;
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.stepper-btn.next .stepper-sub{ color:rgba(31,24,4,0.75); }
+.stepper-btn.next:hover{ filter:brightness(1.08); color:var(--accent-text); }
+
+@media (max-width: 880px){
+  .mobile-header { display:flex; }
+  .app{ grid-template-columns:1fr; }
+  .sidebar{
+    position:fixed;
+    top:0; left:0; bottom:0;
+    width:280px; height:100vh;
+    z-index:100;
+    transform:translateX(-100%);
+    box-shadow:10px 0 30px rgba(0,0,0,0.8);
+  }
+  .sidebar.open{ transform:translateX(0); }
+  .main{ padding:20px 16px 50px; }
+}
+</style>
+</head>
+<body>
+
+<header class="mobile-header">
+  <button id="menuToggle" aria-label="Toggle Navigation Drawer">
+    <span class="icon">☰</span>
+    <span class="label">MENU</span>
+  </button>
+  <div class="mobile-title">OS_Guide<span>.sh</span></div>
+</header>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div id="bgLog"></div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="tag">root@parul-university:~$</div>
+      <h1>OS_Guide<span>.sh</span></h1>
+      <div class="sub">B.Tech CSE · Sem III · Div 3A10</div>
+    </div>
+
+    <div class="tree-label">/root/OS_Guide/</div>
+    <div id="chapterList"></div>
+
+    <div class="sidebar-foot">
+      # Department of CSE<br>
+      # Parul Institute of Technology
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="breadcrumb">
+      <span>~/OS_Guide</span><span class="sep">/</span><span class="accent">unit4_deadlocks</span><span class="sep">/</span><span id="crumbSection">deadlock_intro.md</span>
+    </div>
+
+    <div class="hero">
+      <div class="eyebrow">Chapter 4 · Active Module</div>
+      <h2>Deadlocks &amp; Resource Allocation</h2>
+      <p>System models, 4 necessary conditions, Resource Allocation Graphs (RAG), prevention, avoidance, Banker's algorithm, safe states, and recovery — Chapter 4 interactive study console.</p>
+    </div>
+
+    <div class="console">
+      <div class="console-bar">
+        <div class="dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+        <div class="console-title">user@parul<span style="color:var(--text-faint)">:</span><b id="titlePath">~/unit4</b><span style="color:var(--text-faint)">$</span> cat <span id="titleFile">deadlock_intro.md</span></div>
+        <div class="console-tabs-toggle">10 sections</div>
+      </div>
+
+      <div class="console-tabs" id="consoleTabs"></div>
+
+      <div class="console-body">
+        <div class="slide-count">
+          <span>section <span id="secIdx">1</span>/<span id="secTotal">10</span></span>
+          <span class="pill" id="secPill">DEADLOCK DEFINITIONS</span>
+        </div>
+        <div id="cardWrap"></div>
+      </div>
+
+      <div class="console-foot">
+        <button class="btn" id="prevBtn">◀ cd .. (Previous)</button>
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+        <button class="btn primary" id="nextBtn">Next Terminal Line ▶</button>
+      </div>
+    </div>
+
+    <div class="termline">
+      <div class="history" id="termHistory">
+        <div class="hline"><span class="p">$</span> Welcome to OS_Guide terminal. Type <b style="color:#8ff0a4">help</b> to see available commands.</div>
+      </div>
+      <div class="row">
+        <span class="prompt">user@parul:~$</span>
+        <input type="text" id="termInput" placeholder="type a command… (help, ls, clear, next, prev, goto 5)" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="chapter-stepper">
+      <a class="stepper-btn prev" href="unit3.html">
+        <span>&larr; PREVIOUS MODULE</span>
+        <span class="stepper-sub">unit3.html</span>
+      </a>
+      <a class="stepper-btn next" href="unit5.html">
+        <span>EXECUTE NEXT MODULE</span>
+        <span class="stepper-sub">unit5.html</span>
+        <span>&rarr;</span>
+      </a>
+    </div>
+
+    <footer class="pfoot">Compiled locally in your browser · Parul University · Department of Computer Science &amp; Engineering</footer>
+  </main>
+</div>
+
+<script>
+const UNIT_ID = 4;
+
+/* ============================================================
+   BACKGROUND LOG SIMULATION
+============================================================ */
+(function(){
+  const bg = document.getElementById('bgLog');
+  const lines = [
+    "[  0.0121] deadlock_module: initializing resource allocation graph",
+    "[  0.0341] rag: process p1 requesting resource r2",
+    "[  0.0512] conditions: mutual_exclusion=true hold_and_wait=true",
+    "[  0.0733] conditions: no_preemption=true circular_wait=detected",
+    "[  0.0910] banker_algo: checking safe sequence <p0, p2, p1>",
+    "[  0.1102] avoidance: request granted, state remains safe",
+    "[  0.1340] detection: cycle detected in RAG graph (single instance)",
+    "[  0.1555] recovery: terminating process p3 to resolve deadlock",
+  ];
+  const cols = 6;
+  for(let i=0;i<cols;i++){
+    const col = document.createElement('div');
+    col.className = 'log-col';
+    col.style.left = (i*(100/cols)) + '%';
+    col.style.animationDuration = (18 + Math.random()*14) + 's';
+    col.style.animationDelay = (-Math.random()*20)+'s';
+    let text = '';
+    for(let j=0;j<40;j++){ text += lines[Math.floor(Math.random()*lines.length)] + '\n'; }
+    col.textContent = text;
+    bg.appendChild(col);
+  }
+})();
+
+/* ============================================================
+   CHAPTER / SIDEBAR DATA
+============================================================ */
+const chapters = [
+  {id:1, key:'ch1', file:'ch1_process_management.sh', name:'Process Management', status: UNIT_ID > 1 ? 'done' : (UNIT_ID === 1 ? 'active' : 'upcoming'), href:'index.html'},
+  {id:2, key:'ch2', file:'ch2_cpu_scheduling.sh', name:'CPU Scheduling', status: UNIT_ID > 2 ? 'done' : (UNIT_ID === 2 ? 'active' : 'upcoming'), href:'unit2.html'},
+  {id:3, key:'ch3', file:'ch3_process_sync.sh', name:'Process Synchronization', status: UNIT_ID > 3 ? 'done' : (UNIT_ID === 3 ? 'active' : 'upcoming'), href:'unit3.html'},
+  {id:4, key:'ch4', file:'ch4_deadlocks.sh', name:'Deadlocks', status: UNIT_ID > 4 ? 'done' : (UNIT_ID === 4 ? 'active' : 'upcoming'), href:'unit4.html'},
+  {id:5, key:'ch5', file:'ch5_memory_management.sh', name:'Memory Management', status: UNIT_ID > 5 ? 'done' : (UNIT_ID === 5 ? 'active' : 'upcoming'), href:'unit5.html'},
+  {id:6, key:'ch6', file:'ch6_file_systems.sh', name:'File Systems', status: UNIT_ID > 6 ? 'done' : (UNIT_ID === 6 ? 'active' : 'upcoming'), href:'unit6.html'},
+];
+
+function slugify(str){
+  return String(str).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+/* Helper for RAG SVG graphs */
+function ragSvg(idPrefix, nodes, edges, w=260, h=210){
+  const nodeMap = {};
+  nodes.forEach(n=>nodeMap[n.id]=n);
+  let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrow-${idPrefix}" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="var(--accent)"></path>
+      </marker>
+    </defs>`;
+  edges.forEach(([a,b])=>{
+    const A = nodeMap[a], B = nodeMap[b];
+    svg += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="var(--accent)" stroke-width="1.6" opacity="0.85" marker-end="url(#arrow-${idPrefix})"></line>`;
+  });
+  nodes.forEach(n=>{
+    if(n.type === 'P'){
+      svg += `<circle cx="${n.x}" cy="${n.y}" r="17" fill="var(--panel-2)" stroke="var(--accent)" stroke-width="1.6"></circle>
+      <text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text)">${n.id}</text>`;
+    } else {
+      svg += `<rect x="${n.x-18}" y="${n.y-18}" width="36" height="36" rx="4" fill="var(--panel-2)" stroke="var(--text-dim)" stroke-width="1.4"></rect>
+      <text x="${n.x}" y="${n.y-22}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text-dim)">${n.id}</text>`;
+      (n.dots||[]).forEach(d=>{
+        svg += `<circle cx="${d[0]}" cy="${d[1]}" r="2.4" fill="var(--accent)"></circle>`;
+      });
+    }
+  });
+  svg += `</svg>`;
+  return svg;
+}
+
+/* ============================================================
+   UNIT 4 CONTENT — VERBATIM FROM LECTURE SLIDES
+============================================================ */
+const sections = [
+{
+  id:'deadlock_intro', pill:'DEADLOCK DEFINITIONS', file:'deadlock_intro.md', label:'Introduction to Deadlock',
+  cards:[
+    {title:'What is Deadlock?', body:`<ul>
+      <li>In a multiprogramming system, several processes compete for a limited number of resources. If a requested resource is unavailable, the process enters a waiting state.</li>
+      <li>If a process is unable to change its waiting state indefinitely because the resources it requested are held by other waiting processes, the system is in a <b>Deadlock</b>.</li>
+    </ul>`},
+    {title:'Bridge Crossing Analogy', body:`<ul>
+      <li>Traffic in both directions on a narrow one-lane bridge.</li>
+      <li>Each section of the bridge is viewed as a resource.</li>
+      <li>If a deadlock occurs, it can be resolved only if one car backs up (pre-empt resources and rollback).</li>
+      <li>Starvation is possible if one direction is favored.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'system_model', pill:'SYSTEM MODEL', file:'system_model.md', label:'Deadlock System Model',
+  cards:[
+    {title:'Three-Step System Model', body:`<ol>
+      <li><b>Request:</b> Process requests the resource. If request cannot be granted immediately, process must wait.</li>
+      <li><b>Use:</b> Process operates on the resource.</li>
+      <li><b>Release:</b> Process releases the resource after finishing its task.</li>
+    </ol>`}
+  ]
+},
+{
+  id:'necessary_conditions', pill:'NECESSARY CONDITIONS', file:'necessary_conditions.md', label:'4 Necessary & Sufficient Conditions',
+  cards:[
+    {title:'Necessary Conditions for Deadlock', body:`<ol>
+      <li><b>Mutual Exclusion:</b> At least one resource must be held in a non-shareable mode (only one process at a time).</li>
+      <li><b>Hold &amp; Wait:</b> A process holds at least one resource while waiting for additional resources held by others.</li>
+      <li><b>No Pre-emption:</b> Resources cannot be forcibly taken away; they are released only voluntarily by the holding process.</li>
+      <li><b>Circular Wait:</b> A closed chain of processes exists, where each process holds resources needed by the next process in the chain.</li>
+    </ol>`}
+  ]
+},
+{
+  id:'rag', pill:'RESOURCE ALLOCATION GRAPH', file:'rag.md', label:'Resource Allocation Graph (RAG)',
+  cards:[
+    {title:'RAG Graph Properties', body:`<ul>
+      <li><b>Process Nodes (P):</b> Represented as circles.</li>
+      <li><b>Resource Nodes (R):</b> Represented as squares, with dots inside representing resource instances.</li>
+      <li><b>Request Edge (P → R):</b> Directed arc from Process to Resource (process is waiting).</li>
+      <li><b>Assignment Edge (R → P):</b> Directed arc from Resource instance to Process (resource is held).</li>
+    </ul>`},
+    {title:'Cycle Rules for Deadlock Detection', body:`<ul>
+      <li>If RAG contains <b>no cycles</b> → System is <b>not deadlocked</b>.</li>
+      <li>If RAG contains a <b>cycle &amp; single instance per resource</b> → <b>Deadlock exists</b>.</li>
+      <li>If RAG contains a <b>cycle &amp; multiple instances</b> → Deadlock is <b>possible but not guaranteed</b>.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'rag_diagrams', pill:'RAG DIAGRAMS', file:'rag_diagrams.md', label:'RAG Graph Diagrams',
+  cards:[
+    {title:'Deadlock Cycle vs Non-Deadlocked Cycle', body:`<div class="diagram" style="flex-direction:row; justify-content:space-around; flex-wrap:wrap;">
+      <div>
+        ${ragSvg('d1',
+          [
+            {id:'P1',type:'P',x:45,y:130},
+            {id:'R1',type:'R',x:95,y:45, dots:[[95,45]]},
+            {id:'P2',type:'P',x:150,y:130},
+            {id:'R3',type:'R',x:205,y:45, dots:[[205,45]]},
+            {id:'P3',type:'P',x:225,y:130},
+            {id:'R2',type:'R',x:95,y:180, dots:[[89,180],[101,180]]},
+          ],
+          [['R1','P1'],['P1','R2'],['R2','P2'],['P2','R1'],['R3','P2'],['R3','P3']],
+          260,210
+        )}
+        <div class="cap">Figure 1: RAG with Deadlock Cycle</div>
+      </div>
+      <div>
+        ${ragSvg('d2',
+          [
+            {id:'R1',type:'R',x:120,y:50, dots:[[112,50],[128,50]]},
+            {id:'P1',type:'P',x:45,y:130},
+            {id:'P2',type:'P',x:225,y:50},
+            {id:'P3',type:'P',x:225,y:130},
+            {id:'R2',type:'R',x:120,y:190, dots:[[112,190],[128,190]]},
+          ],
+          [['P1','R1'],['R1','P2'],['R1','P3'],['P3','R2'],['R2','P1']],
+          260,210
+        )}
+        <div class="cap">Figure 2: Cycle with No Deadlock</div>
+      </div>
+    </div>`}
+  ]
+},
+{
+  id:'handling_methods', pill:'HANDLING METHODS', file:'handling_methods.md', label:'Methods of Handling Deadlocks',
+  cards:[
+    {title:'Deadlock Handling Strategies', body:`<ol>
+      <li><b>Deadlock Prevention:</b> Design system to invalidate at least one of the 4 necessary conditions.</li>
+      <li><b>Deadlock Avoidance:</b> Dynamically check resource allocation state to ensure system remains in a safe state (Banker's Algorithm).</li>
+      <li><b>Deadlock Detection &amp; Recovery:</b> Allow deadlock to occur, detect it via algorithms, and recover.</li>
+      <li><b>Ostrich Algorithm (Ignorance):</b> Ignore deadlock occurrence (used by Windows, Linux, Android).</li>
+    </ol>`}
+  ]
+},
+{
+  id:'prevention_techniques', pill:'PREVENTION', file:'prevention_techniques.md', label:'Deadlock Prevention Techniques',
+  cards:[
+    {title:'Preventing the 4 Conditions', body:`<ul>
+      <li><b>Mutual Exclusion:</b> Spool non-shareable resources where possible.</li>
+      <li><b>Hold &amp; Wait:</b> Conservative approach (require process to acquire all resources at start) or release all before new request.</li>
+      <li><b>No Pre-emption:</b> Allow pre-emption of held resources if a new request cannot be satisfied.</li>
+      <li><b>Circular Wait:</b> Enforce total ordering of all resource types; require processes to request resources in strictly increasing order.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'deadlock_avoidance', pill:'AVOIDANCE & SAFE STATE', file:'deadlock_avoidance.md', label:'Deadlock Avoidance & Safe State',
+  cards:[
+    {title:'Safe State & Banker\'s Algorithm', body:`<p>A state is <b>Safe</b> if there exists a safe sequence of process execution <code>&lt;P1, P2, ..., Pn&gt;</code> such that all resource requests can be satisfied without deadlock.</p>
+    <p>Banker's Algorithm checks Max, Allocation, Need, and Available matrices before granting any resource request.</p>`}
+  ]
+},
+{
+  id:'deadlock_recovery', pill:'RECOVERY', file:'deadlock_recovery.md', label:'Deadlock Recovery',
+  cards:[
+    {title:'Deadlock Recovery Approaches', body:`<ol>
+      <li><b>Process Termination:</b> Abort all deadlocked processes OR abort process one by one until cycle is broken.</li>
+      <li><b>Resource Pre-emption:</b> Pre-empt resources from victim processes and rollback process state.</li>
+    </ol>`}
+  ]
+},
+{
+  id:'ref', pill:'REFERENCES', file:'references.md', label:'References',
+  cards:[
+    {title:'References', body:`<ul>
+      <li>[1] Silberschatz, A., Galvin, P. B., &amp; Gagne, G. Operating system concepts.</li>
+      <li>[2] Stallings, W. Operating systems: Internals and design principles.</li>
+      <li>[3] Tanenbaum, A. Modern operating systems.</li>
+    </ul>`}
+  ]
+}
+];
+
+/* ============================================================
+   STATE + RENDER
+============================================================ */
+let currentSection = 0;
+
+function renderSidebar(){
+  const wrap = document.getElementById('chapterList');
+  wrap.innerHTML = '';
+  chapters.forEach(ch=>{
+    const div = document.createElement('div');
+    div.className = 'chapter ' + ch.status;
+    div.style.setProperty('--chcolor', `var(--${ch.key})`);
+
+    let icon = '📄', statusLabel = `CH${ch.id}`;
+    if(ch.status==='done'){ icon='✓'; statusLabel='DONE'; }
+    if(ch.status==='active'){ icon='▶'; statusLabel='ACTIVE'; }
+
+    div.innerHTML = `
+      <a class="chapter-head" href="${ch.href}" data-ch="${ch.id}">
+        <span class="chapter-icon">${icon}</span>
+        <span class="chapter-name">ch${ch.id}_${ch.file.replace('ch'+ch.id+'_','')}</span>
+        <span class="chapter-status">${statusLabel}</span>
+      </a>
+      <div class="subnav" id="subnav-${ch.id}"></div>
+    `;
+    wrap.appendChild(div);
+
+    if(ch.status==='active'){
+      const sub = div.querySelector('.subnav');
+      sections.forEach((s,i)=>{
+        const item = document.createElement('a');
+        item.className = 'subnav-item' + (i===currentSection?' current':'');
+        item.href = '#' + slugify(s.label || s.id);
+        item.dataset.idx = i;
+        item.innerHTML = `<span class="idx">${String(i+1).padStart(2,'0')}</span><span>${s.label}</span>`;
+        item.addEventListener('click', (e)=>{
+          e.preventDefault();
+          goToSection(i);
+          closeMobileSidebar();
+        });
+        sub.appendChild(item);
+      });
+    }
+  });
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('consoleTabs');
+  tabs.innerHTML = '';
+  sections.forEach((s,i)=>{
+    const t = document.createElement('div');
+    t.className = 'ctab' + (i===currentSection ? ' active':'');
+    t.textContent = s.file;
+    t.addEventListener('click', ()=> goToSection(i));
+    tabs.appendChild(t);
+  });
+}
+
+function renderSection(){
+  const s = sections[currentSection];
+  document.getElementById('secIdx').textContent = currentSection+1;
+  document.getElementById('secTotal').textContent = sections.length;
+  document.getElementById('secPill').textContent = s.pill;
+  document.getElementById('titleFile').textContent = s.file;
+  document.getElementById('crumbSection').textContent = s.file;
+  document.getElementById('progFill').style.width = (((currentSection+1)/sections.length)*100)+'%';
+
+  const wrap = document.getElementById('cardWrap');
+  wrap.innerHTML = '';
+  s.cards.forEach((c,i)=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (i*0.05)+'s';
+    card.innerHTML = `<h3>${c.title}</h3>${c.body}`;
+    wrap.appendChild(card);
+  });
+
+  document.getElementById('prevBtn').disabled = currentSection===0;
+  document.getElementById('nextBtn').textContent = currentSection === sections.length-1 ? 'Execute Next Module: unit5.html ✓' : 'Next Terminal Line ▶';
+
+  renderTabs();
+  renderSidebar();
+}
+
+function goToSection(i){
+  if(i<0 || i>=sections.length) return;
+  currentSection = i;
+  renderSection();
+  window.scrollTo({top:0, behavior:'smooth'});
+  const slug = slugify(sections[currentSection].label || sections[currentSection].id);
+  history.replaceState(null, "", "#" + slug);
+}
+
+function goToSlug(hash){
+  const slug = (hash || "").replace(/^#/, "");
+  if(!slug) return false;
+  const idx = sections.findIndex(s => slugify(s.label || s.id) === slug);
+  if(idx === -1) return false;
+  goToSection(idx);
+  return true;
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=> goToSection(currentSection-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(currentSection === sections.length-1){
+    pushTermLine(`<span class="p">$</span> Module ch4_deadlocks.sh executed successfully.`);
+    pushTermLine(`<span class="p">$</span> → loading unit5.html`);
+    window.location.href = 'unit5.html';
+  } else {
+    goToSection(currentSection+1);
+  }
+});
+
+/* Mobile drawer toggle */
+const menuToggle = document.getElementById('menuToggle');
+const sidebarEl = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+function openMobileSidebar(){
+  sidebarEl.classList.add('open');
+  sidebarOverlay.classList.add('active');
+}
+function closeMobileSidebar(){
+  sidebarEl.classList.remove('open');
+  sidebarOverlay.classList.remove('active');
+}
+if(menuToggle){
+  menuToggle.addEventListener('click', ()=>{
+    if(sidebarEl.classList.contains('open')) closeMobileSidebar();
+    else openMobileSidebar();
+  });
+}
+if(sidebarOverlay){
+  sidebarOverlay.addEventListener('click', closeMobileSidebar);
+}
+
+/* ============================================================
+   TERMINAL PROMPT
+============================================================ */
+const termHistory = document.getElementById('termHistory');
+const termInput = document.getElementById('termInput');
+
+function pushTermLine(html){
+  const line = document.createElement('div');
+  line.className = 'hline';
+  line.innerHTML = html;
+  termHistory.appendChild(line);
+  termHistory.scrollTop = termHistory.scrollHeight;
+}
+
+function handleCommand(raw){
+  const cmd = raw.trim();
+  pushTermLine(`<span class="p">user@parul:~$</span> ${cmd}`);
+  if(cmd==='') return;
+  const [base, ...args] = cmd.split(/\s+/);
+
+  switch(base.toLowerCase()){
+    case 'help':
+      pushTermLine(`Available commands: <b style="color:#8ff0a4">help</b>, <b style="color:#8ff0a4">ls</b>, <b style="color:#8ff0a4">clear</b>, <b style="color:#8ff0a4">next</b>, <b style="color:#8ff0a4">prev</b>, <b style="color:#8ff0a4">goto &lt;n&gt;</b>, <b style="color:#8ff0a4">cd unit&lt;n&gt;</b>, <b style="color:#8ff0a4">whoami</b>, <b style="color:#8ff0a4">progress</b>`);
+      pushTermLine(`  next / cd unit5 / goto 5  → jump to unit5.html`);
+      pushTermLine(`  prev / cd unit3 / goto 3  → jump to unit3.html`);
+      break;
+    case 'ls':
+      pushTermLine(sections.map(s=>s.file).join('&nbsp;&nbsp;'));
+      break;
+    case 'clear':
+      termHistory.innerHTML = '';
+      break;
+    case 'next':
+      pushTermLine(`<span class="p">$</span> → leaving unit4.html … loading unit5.html`);
+      window.location.href = 'unit5.html';
+      break;
+    case 'prev':
+      pushTermLine(`<span class="p">$</span> → leaving unit4.html … loading unit3.html`);
+      window.location.href = 'unit3.html';
+      break;
+    case 'goto':
+      const n = parseInt(args[0]);
+      if(n === 3){
+        pushTermLine(`<span class="p">$</span> → jumping to chapter 3 … loading unit3.html`);
+        window.location.href = 'unit3.html';
+      } else if(n === 5){
+        pushTermLine(`<span class="p">$</span> → jumping to chapter 5 … loading unit5.html`);
+        window.location.href = 'unit5.html';
+      } else if(n === 4 || isNaN(n) || n<1 || n>sections.length){
+        pushTermLine(`goto: section number between 1 and ${sections.length}`);
+      } else {
+        goToSection(n-1);
+        pushTermLine(`→ jumped to section ${n}`);
+      }
+      break;
+    case 'cd':
+      if(args[0] === 'unit3' || args[0] === 'unit3.html'){
+        pushTermLine(`<span class="p">$</span> cd unit3 → loading unit3.html`);
+        window.location.href = 'unit3.html';
+      } else if(args[0] === 'unit5' || args[0] === 'unit5.html'){
+        pushTermLine(`<span class="p">$</span> cd unit5 → loading unit5.html`);
+        window.location.href = 'unit5.html';
+      } else {
+        pushTermLine(`cd: ${args[0] || '(no path)'}: no such directory`);
+      }
+      break;
+    case 'whoami':
+      pushTermLine('Enigma — B.Tech CSE, Semester III, Division 3A10, Parul Institute of Technology.');
+      break;
+    case 'progress':
+      pushTermLine(`Chapters complete: 3/6 · Current chapter: 4 (Deadlocks) · Section ${currentSection+1}/${sections.length}`);
+      break;
+    default:
+      pushTermLine(`bash: ${base}: command not found. Type <b style="color:#8ff0a4">help</b> for options.`);
+  }
+}
+
+termInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && termInput.value.trim()!==''){
+    handleCommand(termInput.value);
+    termInput.value = '';
+  }
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+renderSection();
+if(window.location.hash){ goToSlug(window.location.hash); }
+window.addEventListener('hashchange', ()=> goToSlug(window.location.hash));
+</script>
+</body>
+</html>

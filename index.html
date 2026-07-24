@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>~/OS_Guide/unit1 — Process Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --bg:#08080c;
+  --panel:#0d1117;
+  --panel-2:#111722;
+  --line:#1c2333;
+  --line-soft:#161c29;
+  --text:#dbe2ef;
+  --text-dim:#7c879c;
+  --text-faint:#4b5468;
+  --mono:'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --sans:'Inter', -apple-system, sans-serif;
+
+  --ch1:#ff3b47; /* crimson red - ACTIVE */
+  --ch2:#39ff88; /* cyberpunk green */
+  --ch3:#3fa9ff; /* neon blue */
+  --ch4:#ffc857; /* radiant gold */
+  --ch5:#ff8a2b; /* solar orange */
+  --ch6:#b9c2cf; /* metallic silver */
+
+  --accent: var(--ch1);
+  --accent-dim: #ff3b4722;
+  --accent-glow: #ff3b4755;
+  --accent-text: #ffffff;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  overflow-x:hidden;
+  position:relative;
+  min-height:100vh;
+}
+
+/* ============ BACKGROUND MATRIX / LOG EFFECT ============ */
+#bgLog{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:.05;
+  mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 20% 20%, black 0%, transparent 75%);
+}
+.log-col{
+  position:absolute;
+  top:-50%;
+  font-family:var(--mono);
+  font-size:11px;
+  line-height:1.7;
+  color:var(--accent);
+  white-space:pre;
+  animation: scrollDown linear infinite;
+}
+@keyframes scrollDown{
+  from{ transform:translateY(-10%); }
+  to{ transform:translateY(60%); }
+}
+
+/* ============ MOBILE HEADER & OVERLAY ============ */
+.mobile-header{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 16px;
+  background:#0a0c12;
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:0;
+  z-index:90;
+}
+.mobile-header #menuToggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  min-width:44px;
+  padding:8px 14px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--accent);
+  font-family:var(--mono);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.mobile-header .mobile-title{
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:700;
+  color:var(--text);
+}
+.mobile-header .mobile-title span{ color:var(--accent); }
+
+.sidebar-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  z-index:95;
+  opacity:0;
+  transition:opacity .3s ease;
+}
+.sidebar-overlay.active{
+  display:block;
+  opacity:1;
+}
+
+/* ============ LAYOUT ============ */
+.app{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns: 280px 1fr;
+  min-height:100vh;
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar{
+  background:linear-gradient(180deg,#0a0c12,#0a0d14);
+  border-right:1px solid var(--line);
+  padding:22px 0 16px;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar::-webkit-scrollbar{width:6px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+.brand{
+  padding:0 20px 18px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:14px;
+}
+.brand .tag{
+  font-family:var(--mono);
+  font-size:10.5px;
+  color:var(--text-faint);
+  letter-spacing:.06em;
+}
+.brand h1{
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:700;
+  color:var(--text);
+  margin-top:6px;
+  letter-spacing:-.01em;
+}
+.brand h1 span{color:var(--accent);}
+.brand .sub{
+  font-size:11px;
+  color:var(--text-dim);
+  margin-top:4px;
+  font-family:var(--sans);
+}
+
+.tree-label{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.12em;
+  color:var(--text-faint);
+  padding:14px 20px 8px;
+  text-transform:uppercase;
+}
+
+.chapter{
+  margin:2px 10px;
+  border-radius:8px;
+  overflow:hidden;
+}
+.chapter-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 10px;
+  min-height:44px;
+  cursor:pointer;
+  font-family:var(--mono);
+  font-size:12.5px;
+  border-radius:8px;
+  transition:all .15s ease;
+  color:var(--text-dim);
+  text-decoration:none;
+}
+.chapter-head:hover{ background:var(--line-soft); color:var(--text); }
+.chapter.done .chapter-icon{ color:var(--chcolor); }
+.chapter.done .chapter-head{ color:var(--text-dim); }
+.chapter.done .chapter-status{
+  background:rgba(255,255,255,0.03);
+  color:var(--chcolor);
+  border:1px solid var(--chcolor);
+}
+.chapter.active .chapter-head{
+  background:var(--accent-dim);
+  color:var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-glow), 0 0 12px var(--accent-glow);
+}
+.chapter.active .chapter-status{
+  background:var(--accent);
+  color:var(--accent-text);
+  font-weight:700;
+  box-shadow:0 0 8px var(--accent-glow);
+}
+.chapter.upcoming .chapter-head{ color:var(--text-dim); }
+.chapter.upcoming .chapter-status{ background:transparent; color:var(--text-faint); border:1px solid var(--line); }
+
+.chapter-icon{
+  width:15px; text-align:center; flex-shrink:0; font-size:12px;
+}
+.chapter-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chapter-status{
+  font-size:9.5px;
+  padding:2px 7px;
+  border-radius:20px;
+  font-family:var(--mono);
+  flex-shrink:0;
+}
+
+.subnav{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .35s ease;
+  border-left:1px solid var(--line);
+  margin-left:20px;
+}
+.chapter.active .subnav{ max-height:900px; }
+.subnav-item{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  min-height:44px;
+  padding:7px 10px 7px 14px;
+  font-size:11.5px;
+  font-family:var(--mono);
+  color:var(--text-dim);
+  cursor:pointer;
+  border-left:2px solid transparent;
+  transition:all .15s ease;
+  text-decoration:none;
+}
+.subnav-item .idx{ color:var(--text-faint); flex-shrink:0; }
+.subnav-item:hover{ color:var(--text); background:var(--line-soft); }
+.subnav-item.current{
+  color:var(--accent);
+  border-left:2px solid var(--accent);
+  background:var(--accent-dim);
+  font-weight:600;
+}
+
+.sidebar-foot{
+  padding:16px 20px 4px;
+  margin-top:10px;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+  line-height:1.6;
+}
+
+/* ============ MAIN ============ */
+.main{
+  padding:26px 34px 60px;
+  max-width:1080px;
+  width:100%;
+}
+.breadcrumb{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--text-dim);
+  margin-bottom:16px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.breadcrumb .accent{ color:var(--accent); }
+.breadcrumb .sep{ color:var(--text-faint); }
+
+.hero{
+  margin-bottom:22px;
+}
+.hero .eyebrow{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--accent);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.hero h2{
+  font-size:30px;
+  font-weight:800;
+  letter-spacing:-.02em;
+  background:linear-gradient(90deg,#fff,var(--accent));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.hero p{
+  color:var(--text-dim);
+  font-size:13.5px;
+  margin-top:8px;
+  max-width:640px;
+}
+
+/* Console window */
+.console{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow: 0 0 0 1px #000, 0 20px 60px -20px #000, 0 0 40px -10px var(--accent-glow);
+  overflow:hidden;
+}
+.console-bar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:11px 16px;
+  background:var(--panel-2);
+  border-bottom:1px solid var(--line);
+}
+.dots{ display:flex; gap:7px; }
+.dot{ width:11px; height:11px; border-radius:50%; }
+.dot.red{ background:#ff5f57; }
+.dot.yellow{ background:#febc2e; }
+.dot.green{ background:#28c840; }
+.console-title{
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-dim);
+  flex:1;
+  text-align:center;
+}
+.console-title b{ color:var(--accent); font-weight:600; }
+.console-tabs-toggle{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text-faint);
+}
+
+.console-tabs{
+  display:flex;
+  overflow-x:auto;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  padding:0 8px;
+}
+.console-tabs::-webkit-scrollbar{height:5px;}
+.console-tabs::-webkit-scrollbar-thumb{background:var(--line);}
+.ctab{
+  font-family:var(--mono);
+  font-size:11.5px;
+  padding:11px 14px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  color:var(--text-faint);
+  white-space:nowrap;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all .15s ease;
+}
+.ctab:hover{ color:var(--text-dim); }
+.ctab.active{ color:var(--accent); border-bottom:2px solid var(--accent); }
+
+.console-body{
+  padding:26px 28px 20px;
+  min-height:340px;
+}
+.slide-count{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  margin-bottom:16px;
+  display:flex;
+  justify-content:space-between;
+}
+.slide-count .pill{
+  background:var(--accent-dim);
+  color:var(--accent);
+  border:1px solid var(--accent-glow);
+  padding:2px 9px;
+  border-radius:20px;
+}
+
+/* Cards for each slide */
+.card{
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:99px;
+  border-radius:9px;
+  padding:18px 20px;
+  margin-bottom:16px;
+  animation: fadeUp .4s ease both;
+}
+.card h3{
+  font-size:16px;
+  color:#fff;
+  margin-bottom:10px;
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.card h3::before{
+  content:"$";
+  color:var(--accent);
+  font-family:var(--mono);
+}
+.card h4{
+  font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--accent);margin:14px 0 6px;font-weight:700;
+}
+.card p{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  margin-bottom:8px;
+}
+.card p b, .card li b{ color:var(--text); font-weight:600; }
+.card ul{ margin:6px 0 6px 0; list-style:none; }
+.card ul li{
+  color:var(--text-dim);
+  font-size:14px;
+  line-height:1.75;
+  padding-left:18px;
+  position:relative;
+  margin-bottom:4px;
+}
+.card ul li::before{
+  content:"›";
+  position:absolute; left:0; top:0;
+  color:var(--accent);
+  font-weight:700;
+}
+.card ol{ margin:6px 0 6px 22px; }
+.card ol li{ color:var(--text-dim); font-size:14px; line-height:1.75; margin-bottom:4px; }
+.card b{ color:var(--text); }
+.card .note{
+  font-family:var(--mono);
+  font-size:11.5px;
+  color:var(--text-faint);
+  margin-top:10px;
+  border-top:1px dashed var(--line);
+  padding-top:8px;
+}
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(8px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+/* Responsive containers for diagrams & tables */
+.diagram, .tbl-wrap, .tbl, .mem-col, .flow, .addr-box, .codebox, .termline .history{
+  overflow-x:auto;
+  max-width:100%;
+}
+
+.diagram{
+  background:#0a0e16;
+  border:1px solid var(--line);
+  border-radius:9px;
+  padding:20px;
+  margin-bottom:16px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+.diagram .cap{
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+
+.flow{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
+}
+.flow .node{
+  font-family:var(--mono); font-size:11.5px;
+  border:1px solid var(--line);
+  background:#0f1420;
+  color:var(--text-dim);
+  padding:8px 12px;
+  border-radius:20px;
+  white-space:nowrap;
+}
+.flow .node.hi{ border-color:var(--accent); color:var(--accent); }
+.flow .arrow{ color:var(--text-faint); font-family:var(--mono); }
+
+.tbl{
+  border-collapse:collapse;
+  font-family:var(--mono);
+  font-size:12px;
+  width:100%;
+  max-width:100%;
+}
+.tbl th, .tbl td{
+  border:1px solid var(--line);
+  padding:8px 12px;
+  text-align:center;
+  color:var(--text-dim);
+}
+.tbl th{ background:#1c2333; color:var(--text); }
+.tbl code{
+  font-family:var(--mono); color:var(--accent); background:var(--panel-2);
+  padding:2px 6px; border-radius:4px; font-size:11.5px; border:1px solid var(--line);
+}
+
+.split{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media (max-width:700px){ .split{ grid-template-columns:1fr; } }
+
+.adv-disadv{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px; }
+@media (max-width:700px){ .adv-disadv{ grid-template-columns:1fr; } }
+.adv, .disadv{ border-radius:8px; padding:12px 14px; border:1px solid var(--line); }
+.adv{ background:rgba(57,255,136,.06); border-color:rgba(57,255,136,.25); }
+.disadv{ background:rgba(255,59,71,.06); border-color:rgba(255,59,71,.25); }
+.adv h4{ color:#39ff88; margin-top:0; }
+.disadv h4{ color:#ff5f57; margin-top:0; }
+
+.genline{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:10px 0 4px; }
+@media (max-width:760px){ .genline{ grid-template-columns:1fr 1fr; } }
+.genline .gbox{ border:1px solid var(--line); background:var(--panel-2); border-radius:8px; padding:12px; }
+.genline .gbox .yr{ font-family:var(--mono); font-size:10.5px; color:var(--accent); }
+.genline .gbox .lbl{ font-size:12.5px; color:var(--text); margin-top:3px; font-weight:600; line-height:1.4; }
+
+/* Nav buttons */
+.console-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 20px;
+  background:var(--panel-2);
+  border-top:1px solid var(--line);
+  gap:10px;
+  flex-wrap:wrap;
+}
+.btn{
+  font-family:var(--mono);
+  font-size:12px;
+  background:transparent;
+  color:var(--text-dim);
+  border:1px solid var(--line);
+  padding:9px 16px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:7px;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.btn:hover{ border-color:var(--accent); color:var(--accent); }
+.btn.primary{
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.btn.primary:hover{ filter:brightness(1.1); color:var(--accent-text); }
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+.progress-track{
+  flex:1; min-width:120px;
+  height:4px; background:var(--line); border-radius:4px; overflow:hidden; margin:0 8px;
+}
+.progress-fill{
+  height:100%; background:linear-gradient(90deg,var(--accent),#fff);
+  width:10%; transition:width .3s ease;
+}
+
+/* Terminal prompt input */
+.termline{
+  margin-top:18px;
+  background:#000;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px 16px;
+  font-family:var(--mono);
+  font-size:12.5px;
+  color:#8ff0a4;
+}
+.termline .history{ max-height:110px; overflow-y:auto; margin-bottom:6px; }
+.termline .history::-webkit-scrollbar{width:5px;}
+.termline .history::-webkit-scrollbar-thumb{background:var(--line);}
+.termline .hline{ color:var(--text-dim); margin-bottom:3px; white-space:pre-wrap; }
+.termline .hline .p{ color:var(--accent); }
+.termline .row{ display:flex; align-items:center; gap:8px; }
+.termline .prompt{ color:var(--accent); flex-shrink:0; }
+.termline input{
+  background:transparent; border:none; outline:none; color:#c9f9d4; font-family:var(--mono); font-size:12.5px; flex:1; min-height:44px;
+}
+
+footer.pfoot{
+  margin-top:26px;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--text-faint);
+  text-align:center;
+}
+
+/* ============ END-OF-CHAPTER STEPPER ============ */
+.chapter-stepper{
+  margin-top:22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.stepper-btn{
+  font-family:var(--mono);
+  font-size:12.5px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:13px 20px;
+  min-height:44px;
+  border-radius:99px;
+  text-decoration:none;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text-dim);
+  transition:border-color .15s ease, color .15s ease, transform .1s ease, background .15s ease;
+}
+.stepper-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--panel-2); }
+.stepper-btn:active{ transform:scale(.98); }
+.stepper-btn .stepper-sub{ color:var(--text-faint); font-weight:400; font-size:11px; }
+.stepper-btn.next{
+  margin-left:auto;
+  background:var(--accent);
+  color:var(--accent-text);
+  border-color:var(--accent);
+  font-weight:700;
+}
+.stepper-btn.next .stepper-sub{ color:rgba(255,255,255,0.85); }
+.stepper-btn.next:hover{ filter:brightness(1.08); color:var(--accent-text); }
+
+@media (max-width: 880px){
+  .mobile-header { display:flex; }
+  .app{ grid-template-columns:1fr; }
+  .sidebar{
+    position:fixed;
+    top:0; left:0; bottom:0;
+    width:280px; height:100vh;
+    z-index:100;
+    transform:translateX(-100%);
+    box-shadow:10px 0 30px rgba(0,0,0,0.8);
+  }
+  .sidebar.open{ transform:translateX(0); }
+  .main{ padding:20px 16px 50px; }
+}
+</style>
+</head>
+<body>
+
+<header class="mobile-header">
+  <button id="menuToggle" aria-label="Toggle Navigation Drawer">
+    <span class="icon">☰</span>
+    <span class="label">MENU</span>
+  </button>
+  <div class="mobile-title">OS_Guide<span>.sh</span></div>
+</header>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div id="bgLog"></div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="tag">root@parul-university:~$</div>
+      <h1>OS_Guide<span>.sh</span></h1>
+      <div class="sub">B.Tech CSE · Sem III · Div 3A10</div>
+    </div>
+
+    <div class="tree-label">/root/OS_Guide/</div>
+    <div id="chapterList"></div>
+
+    <div class="sidebar-foot">
+      # Prof. Abhijitsinh Parmar<br>
+      # Assistant Professor, Dept. of CSE<br>
+      # Parul Institute of Technology
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="breadcrumb">
+      <span>~/OS_Guide</span><span class="sep">/</span><span class="accent">unit1_process_management</span><span class="sep">/</span><span id="crumbSection">concepts.md</span>
+    </div>
+
+    <div class="hero">
+      <div class="eyebrow">Chapter 1 · Active Module</div>
+      <h2>Process Management</h2>
+      <p>Introduction to Operating Systems — Chapter 1. A verbatim, interactive rebuild of the Parul University lecture deck, wired up as a Linux-terminal study console.</p>
+    </div>
+
+    <div class="console">
+      <div class="console-bar">
+        <div class="dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+        <div class="console-title">user@parul<span style="color:var(--text-faint)">:</span><b id="titlePath">~/unit1</b><span style="color:var(--text-faint)">$</span> cat <span id="titleFile">concepts.md</span></div>
+        <div class="console-tabs-toggle">10 sections</div>
+      </div>
+
+      <div class="console-tabs" id="consoleTabs"></div>
+
+      <div class="console-body">
+        <div class="slide-count">
+          <span>section <span id="secIdx">1</span>/<span id="secTotal">10</span></span>
+          <span class="pill" id="secPill">CONCEPTS OF OS</span>
+        </div>
+        <div id="cardWrap"></div>
+      </div>
+
+      <div class="console-foot">
+        <button class="btn" id="prevBtn" disabled>◀ cd .. (Previous)</button>
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+        <button class="btn primary" id="nextBtn">Next Terminal Line ▶</button>
+      </div>
+    </div>
+
+    <div class="termline">
+      <div class="history" id="termHistory">
+        <div class="hline"><span class="p">$</span> Welcome to OS_Guide terminal. Type <b style="color:#8ff0a4">help</b> to see available commands.</div>
+      </div>
+      <div class="row">
+        <span class="prompt">user@parul:~$</span>
+        <input type="text" id="termInput" placeholder="type a command… (help, ls, clear, next, prev, goto 2)" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="chapter-stepper">
+      <a class="stepper-btn prev" href="index.html" style="opacity:0.5; pointer-events:none;">
+        <span>START OF MODULES</span>
+        <span class="stepper-sub">index.html</span>
+      </a>
+      <a class="stepper-btn next" href="unit2.html">
+        <span>EXECUTE NEXT MODULE</span>
+        <span class="stepper-sub">unit2.html</span>
+        <span>&rarr;</span>
+      </a>
+    </div>
+
+    <footer class="pfoot">Compiled locally in your browser · Parul University · Department of Computer Science &amp; Engineering</footer>
+  </main>
+</div>
+
+<script>
+const UNIT_ID = 1;
+
+/* ============================================================
+   BACKGROUND LOG SIMULATION
+============================================================ */
+(function(){
+  const bg = document.getElementById('bgLog');
+  const lines = [
+    "[  0.0000] Booting Linux on physical CPU 0x0",
+    "[  0.0010] Linux version 6.2.0-os-guide (root@parul-university)",
+    "[  0.0103] Memory: 8123456K/8388608K available",
+    "[  0.0451] Mount-cache hash table entries: 4096",
+    "[  0.1123] kernel_module: process_management loaded",
+    "[  0.1486] scheduler: multiprogramming batch active",
+    "[  0.1728] syscall table initialized: fork,exec,exit,read,write",
+    "[  0.1970] vfs: mounted root (ext4 filesystem)",
+    "[  0.2210] OK  Started Process Management Service",
+    "user@parul:~$ ps -ef | grep init",
+  ];
+  const cols = 6;
+  for(let i=0;i<cols;i++){
+    const col = document.createElement('div');
+    col.className = 'log-col';
+    col.style.left = (i*(100/cols)) + '%';
+    col.style.animationDuration = (18 + Math.random()*14) + 's';
+    col.style.animationDelay = (-Math.random()*20)+'s';
+    let text = '';
+    for(let j=0;j<40;j++){ text += lines[Math.floor(Math.random()*lines.length)] + '\n'; }
+    col.textContent = text;
+    bg.appendChild(col);
+  }
+})();
+
+/* ============================================================
+   CHAPTER / SIDEBAR DATA
+============================================================ */
+const chapters = [
+  {id:1, key:'ch1', file:'ch1_process_management.sh', name:'Process Management', status: UNIT_ID > 1 ? 'done' : (UNIT_ID === 1 ? 'active' : 'upcoming'), href:'index.html'},
+  {id:2, key:'ch2', file:'ch2_cpu_scheduling.sh', name:'CPU Scheduling', status: UNIT_ID > 2 ? 'done' : (UNIT_ID === 2 ? 'active' : 'upcoming'), href:'unit2.html'},
+  {id:3, key:'ch3', file:'ch3_process_sync.sh', name:'Process Synchronization', status: UNIT_ID > 3 ? 'done' : (UNIT_ID === 3 ? 'active' : 'upcoming'), href:'unit3.html'},
+  {id:4, key:'ch4', file:'ch4_deadlocks.sh', name:'Deadlocks', status: UNIT_ID > 4 ? 'done' : (UNIT_ID === 4 ? 'active' : 'upcoming'), href:'unit4.html'},
+  {id:5, key:'ch5', file:'ch5_memory_management.sh', name:'Memory Management', status: UNIT_ID > 5 ? 'done' : (UNIT_ID === 5 ? 'active' : 'upcoming'), href:'unit5.html'},
+  {id:6, key:'ch6', file:'ch6_file_systems.sh', name:'File Systems', status: UNIT_ID > 6 ? 'done' : (UNIT_ID === 6 ? 'active' : 'upcoming'), href:'unit6.html'},
+];
+
+function slugify(str){
+  return String(str).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+}
+
+/* ============================================================
+   UNIT 1 CONTENT — VERBATIM FROM LECTURE SLIDES
+============================================================ */
+const sections = [
+{
+  id:'concepts', pill:'CONCEPTS OF OS', file:'concepts.md', label:'Concepts of Operating System',
+  cards:[
+    {title:'Concepts of Operating System', body:`<div class="split">
+      <div>
+        <h4>Software:-</h4>
+        <ul>
+          <li>Program is a collection of code/instruction.</li>
+          <li>Software is a collection of program.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Hardware:-</h4>
+        <ul>
+          <li>Physical device is a collection of computer system which is called Hardware.</li>
+        </ul>
+      </div>
+    </div>
+    <p><em>Example:</em> <b>Processor, RAM, Hard disk, I/O devices.</b></p>`},
+    {title:'Types of Software', body:`<p>Software is divide into 3 types:</p>
+    <ol>
+      <li>System software</li>
+      <li>Utility software</li>
+      <li>Application software</li>
+    </ol>`},
+    {title:'System Software', body:`<p>The software which is used to perform all types of system level tasks of computer is called system software.</p>
+    <h4>For example:</h4>
+    <ul>
+      <li>Compiler</li>
+      <li>Operating system</li>
+      <li>Interpreter</li>
+      <li>Linker</li>
+      <li>Loader</li>
+    </ul>`},
+    {title:'Utility Software', body:`<p>The software, which provide an additional meaning to the computer system.</p>
+    <h4>For Example:-</h4>
+    <ul>
+      <li>Calculator</li>
+      <li>MS-paint</li>
+      <li>Browser</li>
+      <li>Notepad</li>
+      <li>Media Player</li>
+    </ul>`},
+    {title:'Application Software', body:`<p>The software which is created by users, using the different high level language and database system for any special purpose.</p>
+    <h4>For Example:-</h4>
+    <ul>
+      <li>Library Management system</li>
+      <li>Banking Software</li>
+      <li>Ticket Reservation system</li>
+    </ul>`}
+  ]
+},
+{
+  id:'def_goals', pill:'DEFINITION & GOALS', file:'definition_goals.md', label:'What is an OS? / Goals',
+  cards:[
+    {title:'What is an Operating System?', body:`<p>An operating system (OS) is a collection of system software that manages computer hardware resources and provides common services for computer programs.</p>
+    <p style="text-align:center;font-family:var(--mono);color:var(--text-faint);">OR</p>
+    <p>A program that acts as an intermediary/interface between a user of a computer and the computer hardware.</p>`},
+    {title:'Operating System Approach', body:`<p>Users and Processes access the Computer's resources through the Operating System</p>
+    <div class="diagram">
+      <div class="flow" style="flex-direction:column;">
+        <span class="node">Human users</span>
+        <span class="arrow">↕</span>
+        <span class="node">Application software</span>
+        <span class="arrow">↕</span>
+        <span class="node hi">Operating system</span>
+        <span class="arrow">↕</span>
+        <span class="node">Other system software</span>
+        <span class="arrow">↕</span>
+        <span class="node">Hardware</span>
+      </div>
+      <div class="cap">Operating System Approach</div>
+    </div>`},
+    {title:'Goals of an Operating System', body:`<ul>
+      <li>Simplify the execution of user programs and make solving user problems easier</li>
+      <li>Use computer hardware efficiently</li>
+      <li>Allow sharing of hardware and software resources.</li>
+      <li>Make application software portable and flexible</li>
+      <li>Provide isolation, security and protection among user programs</li>
+      <li>Improve overall system reliability like Error confinement, Fault tolerance, Reconfiguration.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'generations', pill:'GENERATIONS OF OS', file:'generations.md', label:'Generations of Operating Systems',
+  cards:[
+    {title:'Generations of Operating Systems', body:`<p>It's also known as history of Operating systems. Which can be divided in 4 generations:</p>
+    <div class="genline">
+      <div class="gbox"><div class="yr">1st Gen (1945-1955)</div><div class="lbl">Vacuum Tubes &amp; Plugboards</div></div>
+      <div class="gbox"><div class="yr">2nd Gen (1955-1965)</div><div class="lbl">Transistors &amp; Batch Systems</div></div>
+      <div class="gbox"><div class="yr">3rd Gen (1965-1980)</div><div class="lbl">IC &amp; Multiprogramming</div></div>
+      <div class="gbox"><div class="yr">4th Gen (1980-Present)</div><div class="lbl">Personal Computers</div></div>
+    </div>`},
+    {title:'First Generation (1945-1955): Vacuum Tubes', body:`<ul>
+      <li>Digital computers were not constructed until the second world war.</li>
+      <li>Calculating engines with mechanical relays were built at that time.</li>
+      <li>Mechanical relays were very slow and were later replaced with vacuum tubes.</li>
+      <li>These machines were enormous but were still very slow.</li>
+    </ul>`},
+    {title:'First Generation (1945-1955): Plugboards', body:`<p>Programming languages were unknown and there were no operating systems so all the programming was done in machine language. All the problems were simple numerical calculations.</p>
+    <p>By the 1950's punch cards were introduced and this improved the computer system. Instead of using plugboards, programs were written on cards and read into the system.</p>`},
+    {title:'Second Generation (1955-1965): Transistors & Batch Systems', body:`<p>Transistors led to the development of the computer systems that could be manufactured and sold to paying customers. These machines were known as mainframes and were locked in air-conditioned computer rooms with staff to operate them.</p>
+    <p>The Batch System was introduced to reduce the wasted time in the computer. A tray full of jobs was collected in the input room and read into the magnetic tape.</p>`},
+    {title:'Third Generation (1965-1980): Integrated Circuits & Multiprogramming', body:`<p>Until the 1960's, there were two types of computer systems i.e the scientific and the commercial computers. These were combined by IBM in the System/360 using integrated circuits.</p>
+    <p>The third generation operating systems also introduced multiprogramming. This meant that the processor was not idle while a job was completing its I/O operation. Another job was scheduled on the processor so that its time would not be wasted.</p>`},
+    {title:'Fourth Generation (1980-Present): Personal Computers', body:`<p>Personal Computers were easy to create with the development of large-scale integrated circuits (VLSI chips).</p>
+    <p>The advent of personal computers also led to the growth of networks, creating network operating systems and distributed operating systems.</p>`}
+  ]
+},
+{
+  id:'examples', pill:'PC & MOBILE OS EXAMPLES', file:'os_examples.md', label:'Examples of PC & Mobile OS',
+  cards:[
+    {title:'Microsoft Windows', body:`<ul>
+      <li>Microsoft created the Windows operating system in the mid-1980s.</li>
+      <li>Most recent versions include Windows 10, Windows 8, Windows 7, and Windows Vista.</li>
+      <li>Windows comes pre-loaded on most new PCs, making it the most popular operating system worldwide.</li>
+    </ul>`},
+    {title:'Mac OS', body:`<ul>
+      <li>Mac OS is a line of operating systems created by Apple.</li>
+      <li>It comes preloaded on all new Macintosh computers.</li>
+      <li>Specific versions include El Capitan, Yosemite, Mavericks, Mountain Lion, and Lion.</li>
+    </ul>`},
+    {title:'Linux', body:`<ul>
+      <li>Linux is a family of open-source operating systems, which means they can be modified and distributed by anyone.</li>
+      <li>The advantages of Linux are that it is free and available in many different distributions (Ubuntu, Fedora, Debian, etc.).</li>
+    </ul>`},
+    {title:'Mobile Operating Systems', body:`<ul>
+      <li>Mobile devices such as smartphones and tablets run operating systems designed specifically for mobile devices.</li>
+      <li>Primary examples of mobile OS are Apple iOS and Google Android.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'types', pill:'TYPES OF OS', file:'os_types.md', label:'Types of Operating Systems',
+  cards:[
+    {title:'Types of Operating Systems Overview', body:`<ul>
+      <li>Simple Batch System</li>
+      <li>Multiprogramming Batch System</li>
+      <li>Multitasking / Time Sharing System (TSS)</li>
+      <li>Multiprocessor / Parallel System</li>
+      <li>Real-Time Operating System (RTOS)</li>
+      <li>Distributed Operating System</li>
+    </ul>`},
+    {title:'Simple Batch System', body:`<ul>
+      <li>No direct interaction between user and computer.</li>
+      <li>The user submits a job (on cards or tape) to a computer operator.</li>
+      <li>The operator places a batch of several jobs on an input device.</li>
+    </ul>
+    <div class="diagram">
+      <div class="flow"><span class="node">User</span><span class="arrow">→</span><span class="node">Job</span><span class="arrow">→</span><span class="node">Batch</span><span class="arrow">→</span><span class="node hi">CPU</span></div>
+    </div>`},
+    {title:'Multiprogramming Batch System', body:`<p>Several jobs are kept in main memory at the same time, and the CPU is multiplexed among them to increase CPU utilization.</p>
+    <div class="adv-disadv">
+      <div class="adv">
+        <h4>Advantages</h4>
+        <ul><li>High CPU utilization</li><li>Resource sharing</li></ul>
+      </div>
+      <div class="disadv">
+        <h4>Disadvantages</h4>
+        <ul><li>Requires CPU scheduling</li><li>No user interaction</li></ul>
+      </div>
+    </div>`},
+    {title:'Multitasking / Time Sharing System (TSS)', body:`<p>TSS extends multiprogramming to handle multiple interactive jobs using Round-Robin time slices.</p>
+    <ul>
+      <li>Provides quick response time for interactive users.</li>
+      <li>Gives each user the impression of having a dedicated system.</li>
+    </ul>`},
+    {title:'Multiprocessor & Real-Time Systems', body:`<p><b>Multiprocessor System:</b> Uses multiple CPUs sharing memory and I/O for increased throughput and reliability.</p>
+    <p><b>Real-Time System:</b> Guarantees maximum time limits for critical operations. Hard RTOS guarantees strict deadlines, while Soft RTOS prioritizes tasks without strict failure on missed deadlines.</p>`},
+    {title:'Distributed System', body:`<p>Distributes computation among several physical processors connected via a communication network (Loosely Coupled).</p>`}
+  ]
+},
+{
+  id:'services', pill:'OS SERVICES', file:'services.md', label:'Operating System Services',
+  cards:[
+    {title:'Core OS Services', body:`<ul>
+      <li><b>User Interface:</b> Command-Line (CLI), Graphical User Interface (GUI), or Batch Interface.</li>
+      <li><b>Program Execution:</b> Load program into memory, execute it, and handle normal/abnormal termination.</li>
+      <li><b>I/O Operations:</b> Provide controlled access to I/O devices and files for running programs.</li>
+    </ul>`},
+    {title:'File-System, Communication & Error Detection', body:`<ul>
+      <li><b>File-System Manipulation:</b> Read, write, create, delete, search, and manage permissions for files and directories.</li>
+      <li><b>Communications:</b> Message passing or shared memory between processes on the same or networked machines.</li>
+      <li><b>Error Detection:</b> Detect hardware, memory, or program errors and take corrective action.</li>
+    </ul>`},
+    {title:'System-Wide Resource & Protection Services', body:`<ul>
+      <li><b>Resource Allocation:</b> Allocate CPU cycles, main memory, and I/O devices among concurrent jobs.</li>
+      <li><b>Accounting:</b> Track resource usage for statistics and billing.</li>
+      <li><b>Protection & Security:</b> Control access to resources and authenticate users.</li>
+    </ul>`}
+  ]
+},
+{
+  id:'syscalls', pill:'SYSTEM CALLS', file:'system_calls.md', label:'System Calls',
+  cards:[
+    {title:'System Calls Overview', body:`<p>A system call is a request made by a user program to get services from the operating system kernel.</p>
+    <div class="split">
+      <div>
+        <h4>Kernel Mode</h4>
+        <ul><li>Full access to hardware and memory.</li><li>Halts entire system on crash.</li></ul>
+      </div>
+      <div>
+        <h4>User Mode</h4>
+        <ul><li>Restricted access to hardware.</li><li>Safely halts only the crashing program.</li></ul>
+      </div>
+    </div>`},
+    {title:'System Calls Categories', body:`<table class="tbl">
+      <tr><th>Category</th><th>Example System Calls</th></tr>
+      <tr><td>Process Control</td><td><code>fork()</code>, <code>execve()</code>, <code>waitpid()</code>, <code>exit()</code></td></tr>
+      <tr><td>File Management</td><td><code>open()</code>, <code>read()</code>, <code>write()</code>, <code>close()</code>, <code>lseek()</code></td></tr>
+      <tr><td>Directory Management</td><td><code>mkdir()</code>, <code>rmdir()</code>, <code>link()</code>, <code>unlink()</code></td></tr>
+      <tr><td>Miscellaneous</td><td><code>chdir()</code>, <code>chmod()</code>, <code>kill()</code>, <code>time()</code></td></tr>
+    </table>`}
+  ]
+},
+{
+  id:'structure', pill:'OS STRUCTURE & LAYERS', file:'structure.md', label:'OS Structure & Layers',
+  cards:[
+    {title:'Layered Approach', body:`<div class="diagram">
+      <div class="flow" style="flex-direction:column;">
+        <span class="node">Application Programs</span>
+        <span class="arrow">↓</span>
+        <span class="node">System Services</span>
+        <span class="arrow">↓</span>
+        <span class="node">File System</span>
+        <span class="arrow">↓</span>
+        <span class="node hi">Operating System Kernel</span>
+        <span class="arrow">↓</span>
+        <span class="node">Hardware</span>
+      </div>
+      <div class="cap">Operating System Layers</div>
+    </div>`},
+    {title:'OS Components', body:`<ul>
+      <li>Process Management</li>
+      <li>Main Memory Management</li>
+      <li>File Management</li>
+      <li>I/O System Management</li>
+      <li>Secondary-Storage Management</li>
+      <li>Networking &amp; Protection</li>
+    </ul>`}
+  ]
+},
+{
+  id:'kernel_vm', pill:'KERNEL APPROACHES & VM', file:'kernel_vm.md', label:'Kernel Approaches & Virtual Machine',
+  cards:[
+    {title:'Monolithic vs Microkernel', body:`<p><b>Monolithic Kernel:</b> All OS functionality runs in a single large program in kernel space for maximum speed.</p>
+    <p><b>Microkernel:</b> Removes non-essential components from kernel space into user-space servers, communicating via message passing for higher reliability and security.</p>`},
+    {title:'Virtual Machines', body:`<p>A Virtual Machine (VM) abstracts single computer hardware into multiple isolated execution environments running guest operating systems on top of a hypervisor.</p>`}
+  ]
+},
+{
+  id:'ref', pill:'REFERENCES', file:'references.md', label:'References',
+  cards:[
+    {title:'References', body:`<ul>
+      <li>[1] Silberschatz, A., Galvin, P. B., &amp; Gagne, G. (2005). Operating system concepts. J. Wiley &amp; Sons.</li>
+      <li>[2] Stallings, W. (2018). Operating systems: Internals and design principles. Prentice-Hall.</li>
+      <li>[3] Tanenbaum, A. (2014). Modern operating systems. Pearson.</li>
+      <li>[4] Nutt, G. J. (2004). Operating systems: A modern perspective. Addison Wesley.</li>
+      <li>[5] Bower T. Operating System Structure. K–State Polytechnic.</li>
+    </ul>`}
+  ]
+}
+];
+
+/* ============================================================
+   STATE + RENDER
+============================================================ */
+let currentSection = 0;
+
+function renderSidebar(){
+  const wrap = document.getElementById('chapterList');
+  wrap.innerHTML = '';
+  chapters.forEach(ch=>{
+    const div = document.createElement('div');
+    div.className = 'chapter ' + ch.status;
+    div.style.setProperty('--chcolor', `var(--${ch.key})`);
+
+    let icon = '📄', statusLabel = `CH${ch.id}`;
+    if(ch.status==='done'){ icon='✓'; statusLabel='DONE'; }
+    if(ch.status==='active'){ icon='▶'; statusLabel='ACTIVE'; }
+
+    div.innerHTML = `
+      <a class="chapter-head" href="${ch.href}" data-ch="${ch.id}">
+        <span class="chapter-icon">${icon}</span>
+        <span class="chapter-name">ch${ch.id}_${ch.file.replace('ch'+ch.id+'_','')}</span>
+        <span class="chapter-status">${statusLabel}</span>
+      </a>
+      <div class="subnav" id="subnav-${ch.id}"></div>
+    `;
+    wrap.appendChild(div);
+
+    if(ch.status==='active'){
+      const sub = div.querySelector('.subnav');
+      sections.forEach((s,i)=>{
+        const item = document.createElement('a');
+        item.className = 'subnav-item' + (i===currentSection?' current':'');
+        item.href = '#' + slugify(s.label || s.id);
+        item.dataset.idx = i;
+        item.innerHTML = `<span class="idx">${String(i+1).padStart(2,'0')}</span><span>${s.label}</span>`;
+        item.addEventListener('click', (e)=>{
+          e.preventDefault();
+          goToSection(i);
+          closeMobileSidebar();
+        });
+        sub.appendChild(item);
+      });
+    }
+  });
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('consoleTabs');
+  tabs.innerHTML = '';
+  sections.forEach((s,i)=>{
+    const t = document.createElement('div');
+    t.className = 'ctab' + (i===currentSection ? ' active':'');
+    t.textContent = s.file;
+    t.addEventListener('click', ()=> goToSection(i));
+    tabs.appendChild(t);
+  });
+}
+
+function renderSection(){
+  const s = sections[currentSection];
+  document.getElementById('secIdx').textContent = currentSection+1;
+  document.getElementById('secTotal').textContent = sections.length;
+  document.getElementById('secPill').textContent = s.pill;
+  document.getElementById('titleFile').textContent = s.file;
+  document.getElementById('crumbSection').textContent = s.file;
+  document.getElementById('progFill').style.width = (((currentSection+1)/sections.length)*100)+'%';
+
+  const wrap = document.getElementById('cardWrap');
+  wrap.innerHTML = '';
+  s.cards.forEach((c,i)=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (i*0.05)+'s';
+    card.innerHTML = `<h3>${c.title}</h3>${c.body}`;
+    wrap.appendChild(card);
+  });
+
+  document.getElementById('prevBtn').disabled = currentSection===0;
+  document.getElementById('nextBtn').textContent = currentSection === sections.length-1 ? 'Execute Next Module: unit2.html ✓' : 'Next Terminal Line ▶';
+
+  renderTabs();
+  renderSidebar();
+}
+
+function goToSection(i){
+  if(i<0 || i>=sections.length) return;
+  currentSection = i;
+  renderSection();
+  window.scrollTo({top:0, behavior:'smooth'});
+  const slug = slugify(sections[currentSection].label || sections[currentSection].id);
+  history.replaceState(null, "", "#" + slug);
+}
+
+function goToSlug(hash){
+  const slug = (hash || "").replace(/^#/, "");
+  if(!slug) return false;
+  const idx = sections.findIndex(s => slugify(s.label || s.id) === slug);
+  if(idx === -1) return false;
+  goToSection(idx);
+  return true;
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=> goToSection(currentSection-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(currentSection === sections.length-1){
+    pushTermLine(`<span class="p">$</span> Module ch1_process_management.sh executed successfully.`);
+    pushTermLine(`<span class="p">$</span> → loading unit2.html`);
+    window.location.href = 'unit2.html';
+  } else {
+    goToSection(currentSection+1);
+  }
+});
+
+/* Mobile drawer toggle */
+const menuToggle = document.getElementById('menuToggle');
+const sidebarEl = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+function openMobileSidebar(){
+  sidebarEl.classList.add('open');
+  sidebarOverlay.classList.add('active');
+}
+function closeMobileSidebar(){
+  sidebarEl.classList.remove('open');
+  sidebarOverlay.classList.remove('active');
+}
+if(menuToggle){
+  menuToggle.addEventListener('click', ()=>{
+    if(sidebarEl.classList.contains('open')) closeMobileSidebar();
+    else openMobileSidebar();
+  });
+}
+if(sidebarOverlay){
+  sidebarOverlay.addEventListener('click', closeMobileSidebar);
+}
+
+/* ============================================================
+   TERMINAL PROMPT
+============================================================ */
+const termHistory = document.getElementById('termHistory');
+const termInput = document.getElementById('termInput');
+
+function pushTermLine(html){
+  const line = document.createElement('div');
+  line.className = 'hline';
+  line.innerHTML = html;
+  termHistory.appendChild(line);
+  termHistory.scrollTop = termHistory.scrollHeight;
+}
+
+function handleCommand(raw){
+  const cmd = raw.trim();
+  pushTermLine(`<span class="p">user@parul:~$</span> ${cmd}`);
+  if(cmd==='') return;
+  const [base, ...args] = cmd.split(/\s+/);
+
+  switch(base.toLowerCase()){
+    case 'help':
+      pushTermLine(`Available commands: <b style="color:#8ff0a4">help</b>, <b style="color:#8ff0a4">ls</b>, <b style="color:#8ff0a4">clear</b>, <b style="color:#8ff0a4">next</b>, <b style="color:#8ff0a4">prev</b>, <b style="color:#8ff0a4">goto &lt;n&gt;</b>, <b style="color:#8ff0a4">cd unit&lt;n&gt;</b>, <b style="color:#8ff0a4">whoami</b>, <b style="color:#8ff0a4">progress</b>`);
+      pushTermLine(`  next / cd unit2 / goto 2  → jump to unit2.html`);
+      break;
+    case 'ls':
+      pushTermLine(sections.map(s=>s.file).join('&nbsp;&nbsp;'));
+      break;
+    case 'clear':
+      termHistory.innerHTML = '';
+      break;
+    case 'next':
+      pushTermLine(`<span class="p">$</span> → leaving index.html … loading unit2.html`);
+      window.location.href = 'unit2.html';
+      break;
+    case 'prev':
+      pushTermLine(`<span class="p">$</span> already at index.html (Unit 1)`);
+      break;
+    case 'goto':
+      const n = parseInt(args[0]);
+      if(n === 2){
+        pushTermLine(`<span class="p">$</span> → jumping to chapter 2 … loading unit2.html`);
+        window.location.href = 'unit2.html';
+      } else if(n === 1 || isNaN(n) || n<1 || n>sections.length){
+        pushTermLine(`goto: section number between 1 and ${sections.length}`);
+      } else {
+        goToSection(n-1);
+        pushTermLine(`→ jumped to section ${n}`);
+      }
+      break;
+    case 'cd':
+      if(args[0] === 'unit2' || args[0] === 'unit2.html'){
+        pushTermLine(`<span class="p">$</span> cd unit2 → loading unit2.html`);
+        window.location.href = 'unit2.html';
+      } else {
+        pushTermLine(`cd: ${args[0] || '(no path)'}: no such directory`);
+      }
+      break;
+    case 'whoami':
+      pushTermLine('Enigma — B.Tech CSE, Semester III, Division 3A10, Parul Institute of Technology.');
+      break;
+    case 'progress':
+      pushTermLine(`Current chapter: 1 (Process Management) · Section ${currentSection+1}/${sections.length}`);
+      break;
+    default:
+      pushTermLine(`bash: ${base}: command not found. Type <b style="color:#8ff0a4">help</b> for options.`);
+  }
+}
+
+termInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && termInput.value.trim()!==''){
+    handleCommand(termInput.value);
+    termInput.value = '';
+  }
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+renderSection();
+if(window.location.hash){ goToSlug(window.location.hash); }
+window.addEventListener('hashchange', ()=> goToSlug(window.location.hash));
+</script>
+</body>
+</html>
